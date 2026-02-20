@@ -27,6 +27,8 @@ knitr::opts_chunk$set(echo = FALSE)
 library(ggplot2)
 library(tidyr)
 
+print("Hello, world!")
+
 # plotting functions based on ggplot
 # 1st
 plot_ts_gg <- function(x,
@@ -44,7 +46,7 @@ plot_ts_gg <- function(x,
       Seasonal = as.numeric(x$seasonal),
       Random   = as.numeric(x$random)
     )
-    
+
   } else if (inherits(x, "stl")) {
 
     df <- data.frame(
@@ -229,7 +231,7 @@ plot_ts_gg(
 \bigskip
 
 \textcolor{red}{**EXERCISE 2**} \bigskip
-  
+
 The following figures contain the classical decomposition of the time series and a comparison of the de-trended and stationary series, and of the residuals.
 
 ```{r, co2 decomposition, fig.width=4,fig.height=4}

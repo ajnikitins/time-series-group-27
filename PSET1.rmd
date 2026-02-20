@@ -1,422 +1,403 @@
 ---
 title: "Bocconi University - 20236 Time Series Analysis"
-
-subtitle: "**Take home assignment 1**"
-
-author: "Artūrs Jānis Ņikitins, Artoni Emanuele - Group 27"
-
-
-date: "2026-02-06"
+subtitle: "**Take home assignment 1 | Group 27**"
 output:
   pdf_document:
     latex_engine: xelatex
-
+    extra_dependencies: ["wrapfig"]
+fontsize: 10pt
+geometry: margin=2cm
 ---
 
-
-```{r setup, include=FALSE}
-library(ggplot2)
-library(tidyr)
+```{r, setup, include=FALSE}
 library(tidyverse)
-library(tsibble)
 library(xts)
-library(ggfortify)
-library(dplyr)
-knitr::opts_chunk$set(echo = FALSE)
 
-library(ggplot2)
-library(tidyr)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE)
 
-print("Hello, world!")
+set_theme(theme_classic())
+update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
 
 # plotting functions based on ggplot
-# 1st
-plot_ts_gg <- function(x,
-                       title = NULL,
-                       theme_fn = theme_bw,
-                       facet_ncol = 1,
-                       wrap_width = 45) {
-
-  if (inherits(x, "decomposed.ts")) {
-
-    df <- data.frame(
-      Time     = as.numeric(time(x$x)),
-      Observed = as.numeric(x$x),
-      Trend    = as.numeric(x$trend),
-      Seasonal = as.numeric(x$seasonal),
-      Random   = as.numeric(x$random)
-    )
-
-  } else if (inherits(x, "stl")) {
-
-    df <- data.frame(
-      Time     = as.numeric(time(x$time.series)),
-      Observed = as.numeric(rowSums(x$time.series)),
-      Trend    = as.numeric(x$time.series[, "trend"]),
-      Seasonal = as.numeric(x$time.series[, "seasonal"]),
-      Random   = as.numeric(x$time.series[, "remainder"])
-    )
-
-  } else if (inherits(x, "ts")) {
-
-    df <- data.frame(
-      Time  = as.numeric(time(x)),
-      Value = as.numeric(x)
-    )
-
-    p <- ggplot(df, aes(Time, Value)) +
-      geom_line() +
-      labs(title = title, x = "Time", y = NULL) +
-      theme_fn() +
-      theme(plot.title = element_text(hjust = 0.5))
-
-    if (!is.null(title)) {
-      p <- p + labs(title = paste(strwrap(title, width = wrap_width),
-                                  collapse = "\n"))
-    }
-
-    return(p)
-
-  } else {
-    stop("Input must be ts, decomposed.ts, or stl object.")
+plot_ts_gg <- function(
+  x,
+  title = NULL,
+  facet_ncol = 1,
+  wrap_width = 45
+) {
+  if (!inherits(x, "ts")) {
+    stop("Input must be ts.")
   }
 
-  # Decomposition branch (decompose or stl)
-  df_long <- pivot_longer(df, cols = -Time,
-                          names_to = "Component",
-                          values_to = "Value")
-
-  df_long$Component <- factor(
-    df_long$Component,
-    levels = c("Observed", "Trend", "Seasonal", "Random")
+  df <- tibble(
+      Time = as.numeric(time(x)),
+      Value = as.numeric(x)
   )
 
-  p <- ggplot(df_long, aes(Time, Value)) +
+  p <- ggplot(df, aes(Time, Value)) +
     geom_line() +
-    facet_wrap(~ Component, ncol = facet_ncol, scales = "free_y") +
-    labs(title = title, x = "Time", y = NULL) +
-    theme_fn() +
-    theme(
-      plot.title = element_text(hjust = 0.5),
-      strip.background = element_blank()
-    )
-
-  if (!is.null(title)) {
-    p <- p + labs(title = paste(strwrap(title, width = wrap_width),
-                                collapse = "\n"))
-  }
+    labs(title = title, x = NULL, y = NULL)
 
   p
 }
 
-# 2nd
-plot_multi_ts_gg <- function(x,
-                             title = NULL,
-                             theme_fn = theme_bw,
-                             wrap_width = 45) {
-
-  if (!inherits(x, "ts"))
-    stop("x must be a ts or multivariate ts (e.g., cbind(...))")
-
-  df <- data.frame(Time = as.numeric(time(x)),
-                   as.data.frame(x))
-
-  df_long <- pivot_longer(df, cols = -Time,
-                          names_to = "Series",
-                          values_to = "Value")
-
-  if (!is.null(title))
-    title <- paste(strwrap(title, width = wrap_width), collapse = "\n")
-
-  ggplot(df_long, aes(Time, Value)) +
-    geom_line() +
-    facet_wrap(~ Series, ncol = 1, scales = "free_y") +
-    labs(title = title, x = "Time", y = NULL) +
-    theme_fn() +
-    theme(
-      plot.title = element_text(hjust = 0.5),
-      strip.background = element_blank()
+plot_ts_dec_gg <- function(
+  x,
+  title = NULL,
+  facet_ncol = 1,
+  wrap_width = 45
+) {
+  if (inherits(x, "decomposed.ts")) {
+    df <- tibble(
+      Time = as.numeric(time(x$x)),
+      Observed = as.numeric(x$x),
+      Trend = as.numeric(x$trend),
+      Seasonal = as.numeric(x$seasonal),
+      Random = as.numeric(x$random)
     )
+  } else if (inherits(x, "stl")) {
+    df <- data.frame(
+      Time = as.numeric(time(x$time.series)),
+      Observed = as.numeric(rowSums(x$time.series)),
+      Trend = as.numeric(x$time.series[, "trend"]),
+      Seasonal = as.numeric(x$time.series[, "seasonal"]),
+      Random = as.numeric(x$time.series[, "remainder"])
+    )
+  } else {
+    stop("Input must be decomposed.ts or stl.")
+  }
+
+  df_long <- pivot_longer(
+    df,
+    cols = -Time,
+    names_to = "Component",
+    values_to = "Value"
+  ) %>%
+    mutate(Component = factor(Component, levels = c("Observed", "Trend", "Seasonal", "Random")))
+
+  p <- ggplot(df_long, aes(Time, Value)) +
+    geom_line() +
+    facet_wrap(~Component, ncol = facet_ncol, scales = "free_y") +
+    labs(title = title, x = NULL, y = NULL)
+
+  p
 }
 
 
+plot_multi_ts_gg <- function(
+  x,
+  title = NULL,
+  wrap_width = 45
+) {
+  if (!inherits(x, "ts")) {
+    stop("x must be a ts or multivariate ts (e.g., cbind(...))")
+  }
+
+  df <- data.frame(Time = as.numeric(time(x)), as.data.frame(x))
+
+  df_long <- pivot_longer(
+    df,
+    cols = -Time,
+    names_to = "Series",
+    values_to = "Value"
+  )
+
+  if (!is.null(title)) {
+    title <- paste(strwrap(title, width = wrap_width), collapse = "\n")
+  }
+
+  ggplot(df_long, aes(Time, Value)) +
+    geom_line() +
+    facet_wrap(~Series, ncol = 1, scales = "free_y") +
+    labs(title = title, x = NULL, y = NULL)
+}
+
 
 ```
 
-\bigskip
+# EXERCISE 1
 
-\textcolor{red}{**EXERCISE 1**} \bigskip
+## EXERCISE 1.1
 
-\textcolor{blue}{**EXERCISE 1.1**: generate a random sample of size $24$ from a $N(0, 2)$ distribution, and pretend it is a time series.}
-The following printout shows the generated time series and its characteristics.
+The following printout shows the generated time series:
 
 ```{r, exercise 1-1}
 # Exercise 1.1
-x<-rnorm(24, sd=2)
-y<-ts(x)
+x <- rnorm(24, sd = sqrt(2))
+y <- ts(x)
 y
+
 ```
 
-\textcolor{blue}{**EXERCISE 1.2**: reduce the size of ggplot output.}
+## EXERCISE 1.2
 
-Given the code chunk included in the LAB1 document, we reduce the plot's size by using the chunk options fig.height, fig.width, out.height, out.width.
+A plot's render size can be reduced with the chunk options `fig.height`, `fig.width` and display size with `out.height`, `out.width`.
 
-\textcolor{blue}{**EXERCISE 1.3**: What does the function stl do, what techniques does it use? Explain}
-STL stands for Season and Trend decomposition using Loess. Given a univariate time series, it identifies a seasonal, trend and remainder components, assuming an additive decomposition.
+## EXERCISE 1.3
+
+STL stands for Season and Trend decomposition using LOESS. Given a univariate time series, it identifies seasonal, trend, and remainder components, assuming an additive decomposition.
 LOESS estimates a smooth curve by fitting local regressions around each point, weighting nearby observations more heavily than distant ones.
 The algorithm proceeds iteratively through inner and outer loops. In the inner loop, the seasonal and trend components are alternately updated using LOESS smoothing. In the outer loop, robustness weights are recomputed to reduce the influence of outliers; these updated weights are then used in the next inner-loop iteration.
-STL first applies loess smoothing to detrend the series; then, it applies the same method separately to each seasonal subseries (e.g. to all quarters). The remainder is thus deprived of any structure.
+STL first applies LOESS smoothing to detrend the series; then, it applies the same method separately to each seasonal subseries (e.g. to all quarters). The remainder is thus deprived of any structure.
 STL differs from classical time series decomposition methods, which typically involve moving averages to estimate trends and assume seasonal patterns to be constant, in that it allows for flexibility in specifying the amounts of variation in the trend and seasonal components.
 
-\textcolor{blue}{**EXERCISE 1.4**:}
+## EXERCISE 1.4
 
-```{r, transformation, fig.width=4, fig.height=3}
+```{r, transformation, fig.width=5, fig.height=3, fig.show = "hold", out.width = "50%"}
 # Exercise 1.4
-log_AirPassengers<-log(AirPassengers)
-comb<-cbind(log_AirPassengers,AirPassengers)
+log_AirPassengers <- log(AirPassengers)
+comb <- cbind(log_AirPassengers, AirPassengers)
 
-df <- data.frame(
-  Time = as.numeric(time(AirPassengers)),
-  Raw  = as.numeric(AirPassengers),
-  Log  = as.numeric(log(AirPassengers))
-)
+df <- tibble(Raw = AirPassengers) %>%
+  mutate(
+    Time = time(AirPassengers),
+    Log = log(AirPassengers)
+  ) %>% pivot_longer(
+    c(Log, Raw),
+    names_to = "Series",
+    values_to = "Value"
+  ) %>%
+  mutate(Series = factor(Series, levels = c("Raw", "Log")))
 
-df_long <- pivot_longer(df, cols = c(Log, Raw),
-                        names_to = "Series",
-                        values_to = "Value")
-
-df_long$Series <- factor(df_long$Series, levels = c("Log", "Raw"))
-
-ggplot(df_long, aes(Time, Value)) +
+ggplot(df, aes(Time, Value)) +
   geom_line() +
-  facet_wrap(~ Series, ncol = 2, scales = "free_y") +    # thus explained the need for df
+  facet_wrap(~Series, ncol = 1, scales = "free_y") +
   labs(
-    title = "Raw time series (bottom)\nand log-transformed series (top)",
-    x = "Time",
-    y = NULL
-  ) +
-  theme_minimal() +
-  theme(
-    plot.title = element_text(size = 11, hjust = 0.5),
-    strip.background = element_blank()
+    title = "Raw time series (left) and log-transformed series (right)",
+    x = NULL, y = NULL
   )
 
+# Additive decomposition
+m <- decompose(log_AirPassengers, type = "additive")
+
+plot_ts_dec_gg(
+  m,
+  title = "Additive decomposition of log_AirPassengers",
+  facet_ncol = 2
+)
+
 ```
+
+\begin{wrapfigure}[11]{r}{0.5\textwidth}
+
+ \vspace{-\baselineskip}
+
+ \centering
+
+```{r, stl decomposition, fig.width=5, fig.height=3, out.width = "100%", fig.align = "right"}
+s <- stl(log_AirPassengers, s.window = "periodic")
+
+plot_ts_dec_gg(
+  s,
+  title = "STL decomposition of log_AirPassengers",
+  facet_ncol = 2
+)
+
+```
+
+\end{wrapfigure}
 
 By comparing the dataset to its log-transformation, it appears obvious that the series is heteroskedastic, violating stationarity. We can then conveniently model the series by taking the log-transform and then fitting an additive decomposition. This yields the result included in the following plot.
 
-```{r, additive decomposition, fig.width=5,fig.height=3}
-m<-decompose(log_AirPassengers,type="additive")
+It is also possible to take logs and apply an additive decomposition using STL. In particular, with `s.window = "periodic"`, the method forces constant seasonal patterns, making it similar to classical decomposition.
 
-plot_ts_gg(
-  m,
-  title = "Additive decomposition of log_AirPassengers",
-  theme_fn = theme_minimal
-)
-```
-
-It is also possible to take logs and apply an additive decomposition using loess. In particular, with s.window = "periodic", the method forces the seasonal patterns to be constant, making it closer to classical decomposition. However, the smoothed trend appears more gradual. The decomposition's results are plotted in the following figure.
-
-```{r, stl decomposition, fig.width=5,fig.height=4}
-s<-stl(log_AirPassengers,s.window="periodic")
-
-plot_ts_gg(
-  s,
-  title = "STL decomposition of log_AirPassengers",
-  theme_fn = theme_minimal
-)
-```
-
-
-\bigskip
-
-\textcolor{red}{**EXERCISE 2**} \bigskip
+# EXERCISE 2
 
 The following figures contain the classical decomposition of the time series and a comparison of the de-trended and stationary series, and of the residuals.
 
-```{r, co2 decomposition, fig.width=4,fig.height=4}
+```{r, co2 decomposition, fig.width=5, fig.height=3, fig.show = "hold", out.width = "50%"}
 # Exercise 2
 
 # decompose and plot the components
-m<-decompose(co2,type="additive")
+m <- decompose(co2, type = "additive")
 
-plot_ts_gg(
+plot_ts_dec_gg(
   m,
   title = "Additive decomposition of CO2",
-  theme_fn = theme_minimal
+  facet_ncol = 2
 )
 
-# 4-panel plot
-detrended <- co2 - m$trend
-Y_star    <- co2 - m$trend - m$seasonal
-residuals <- m$random
-diff_line <- residuals - Y_star
-
-df <- data.frame(
-  Time      = as.numeric(time(co2)),
-  Original  = as.numeric(co2),
-  Detrended = as.numeric(detrended),
-  Y_star    = as.numeric(Y_star),
-  Residuals = as.numeric(residuals),
-  Diff      = as.numeric(diff_line)
-)
-
-# long data for the 4 panels
-df_long <- pivot_longer(
-  df,
+df <- tibble(
+  Time = as.numeric(time(co2)),
+  Original = as.numeric(co2),
+  Detrended = as.numeric(co2 - m$trend),
+  Y_star = as.numeric(co2 - m$trend - m$seasonal),
+  Residuals = as.numeric(m$random),
+  Diff = Residuals - Y_star
+) %>%  pivot_longer(
   cols = c(Original, Detrended, Y_star, Residuals),
   names_to = "Panel",
   values_to = "Value"
-)
-
-df_long$Panel <- factor(df_long$Panel,
-                        levels = c("Original", "Detrended", "Y_star", "Residuals"))
+) %>%
+  mutate(Panel = factor(Panel, levels = c("Original", "Detrended", "Y_star", "Residuals")))
 
 # data for the red line
-df_diff <- data.frame(
-  Time  = df$Time,
-  Panel = factor("Residuals", levels = levels(df_long$Panel)),
-  Diff  = df$Diff
-)
+df_diff <- df %>%
+  filter(Panel == "Residuals")
 
-ggplot(df_long, aes(Time, Value)) +
+ggplot(df, aes(Time, Value)) +
   geom_line() +
   geom_line(data = df_diff, aes(Time, Diff), color = "red") +
-  facet_wrap(~ Panel, ncol = 1, scales = "free_y") +
-  labs(title = strwrap("CO2: original, detrended, Y*, residuals with Y^* in red"),
-       x = "Time",
-       y = NULL) +
-  theme_classic() +
-  theme(
-    plot.title = element_text(size = 10, hjust = 0.5),
-    strip.background = element_blank()
+  facet_wrap(~Panel, ncol = 2, scales = "free_y") +
+  labs(
+    title = strwrap("CO2: original, detrended, Y*, residuals (diff with Y^* in red)"),
+    x = NULL,
+    y = NULL
   )
 
 
 ```
 
-\bigskip
+# EXERCISE 3
 
-\textcolor{red}{**EXERCISE 3**} \bigskip
+The time series is clearly heteroskedastic. It is possible to either use a multiplicative decomposition, or to take the log-transform of the time series to stabilize the variance, and then apply an additive decomposition. In the results, we show the latter.
 
-```{r, UKgas decomposition, fig.height=4, fig.width=5}
+```{r, UKgas decomposition, fig.height=3, fig.width=5, fig.show = "hold", out.width = "50%"}
 # Exercise 3
 #1
 plot_ts_gg(
   UKgas,
-  title = "Raw time series",
-  theme_fn = theme_minimal
+  title = "Raw time series"
 )
 
 #2
-m<-decompose(log(UKgas), type="additive")
-plot_ts_gg(
+m <- decompose(log(UKgas), type = "additive")
+plot_ts_dec_gg(
   m,
-  title = "Additive decomposition of UKgas time series",
-  theme_fn = theme_minimal
+  title = "Additive decomposition of log_UKgas time series",
+  facet_ncol = 2
 )
 ```
 
-The time series is clearly heteroskedastic. It is possible to either use a multiplicative decomposition, or to take the log-transform of the time series to stabilize the variance, and then apply an additive decomposition. In the results, we have adopted this latter approach.
-
-```{r,  fig.width=5,fig.height=3}
+```{r UKgas STL, fig.width=5, fig.height=3, fig.show = "hold", out.width = "50%"}
 s <- stl(log(UKgas), s.window = 7)
-plot_ts_gg(
+plot_ts_dec_gg(
   s,
   title = "STL (additive) decomposition of UKgas",
-  theme_fn = theme_minimal
+  facet_ncol = 2
 )
 
+## HW decomposition
+hw <- HoltWinters(log(UKgas),seasonal = "additive")
+
+df_hw <- tibble(
+  Time = as.numeric(time(UKgas)),
+  Original = hw$x,
+  Fitted = c(rep(NA, 4), hw$fitted[, "xhat"])
+) %>%
+  pivot_longer(-Time, names_to = "var", values_to = "val")
+
+ggplot(df_hw, aes(x = Time, y = val, color = var)) +
+  geom_line() +
+  labs(
+    title = "Holt-Winters decomposition",
+    x = NULL,
+    y = NULL
+  ) +
+  theme(
+    legend.position = "inside",
+    legend.position.inside = c(0.1, 0.9),
+    legend.title = element_blank()
+  ) +
+  scale_color_manual(values = c("Original" = "black", "Fitted" = "red"))
+
 ```
+
 The classical additive decomposition shows that the residuals' distribution over time is non-random around 1970, suggesting that the model's assumption of constant seasonal amplitude is violated. In particular, since classical decomposition constrains the seasonal component to be time-invariant, any change in seasonal pattern is absorbed by the residuals. To confirm and address this issue, we can run an alternative STL decomposition to the same log-transformed series, a method which allows the seasonal component to vary over time. We can thus clearly determine that the seasonal amplitude indeed changes over time, and that the rate of change also increases significantly after the early 1970's. This is an indication that the classical time series decomposition is inadequate at identifying the evolving seasonal pattern.
 
-```{r, Holt-Winters decomposition, fig.width=5, fig.height=3}
-hw<-HoltWinters(log(UKgas),seasonal = "additive")
-plot(hw, main = "Holt-Winters decomposition")
+```{r UKgas HW, include=FALSE}
+hw <- HoltWinters(log(UKgas), seasonal = "additive")
+note <- sprintf(
+  "alpha = %.3f, beta = %.3f, gamma = %.3f",
+  hw$alpha,
+  hw$beta,
+  hw$gamma
+)
 
 ```
-```{r, include=FALSE}
-hw<-HoltWinters(log(UKgas),seasonal = "additive")
-note <- sprintf("alpha = %.3f, beta = %.3f, gamma = %.3f",
-                hw$alpha, hw$beta, hw$gamma)
 
-```
+After applying an additive model to the log-transformation of the series, the fitted Holt-Winters procedure tracks both the trend and the seasonal variation, indicating that a level-trend-seasonality exponential smoothing procedure fits the data well. In particular, the decomposition fixes alpha = `r sprintf("%.3f", hw$alpha)`, beta = `r sprintf("%.3f", hw$beta)`, gamma = `r sprintf("%.3f", hw$gamma)`.
 
-After applying an additive model to the log-transformation of the series, the fitted Holt-Winters procedure tracks both the trend and the seasonal variation, indicating that a level-trend-seasonality exponential smoothing procedure fits the data well. In particular, the decomposition fixes alpha = 0.029, beta = 1, gamma = 0.725.
+# EXERCISE 4
 
-\bigskip
-
-\textcolor{red}{**EXERCISE 4**} \bigskip
-
-```{r, simple ES, fig.width=5, fig.height=3}
+```{r, simple ES, fig.width=5, fig.height=3, fig.show = "hold", out.width = "50%"}
 # Exercise 4
-m<-HoltWinters(Nile, beta = FALSE, gamma = FALSE)
-s<-HoltWinters(Nile, alpha = 0.1, beta = FALSE, gamma = FALSE)
-t<-HoltWinters(Nile, alpha = 0.9, beta = FALSE, gamma = FALSE)
+m <- HoltWinters(Nile, beta = FALSE, gamma = FALSE)
+s <- HoltWinters(Nile, alpha = 0.1, beta = FALSE, gamma = FALSE)
+t <- HoltWinters(Nile, alpha = 0.9, beta = FALSE, gamma = FALSE)
 
-mape = function(y, yhat){ mean(abs(y - yhat)/y) }
+mape = function(y, yhat) {
+  mean(abs(y - yhat) / y)
+}
 
 y_m <- window(Nile, start = time(Nile)[2])
-m_mape <- mape(y_m, m$fitted[,1])
-s_mape <- mape(y_m, s$fitted[,1])
-t_mape <- mape(y_m, t$fitted[,1])
+m_mape <- mape(y_m, m$fitted[, 1])
+s_mape <- mape(y_m, s$fitted[, 1])
+t_mape <- mape(y_m, t$fitted[, 1])
 
 # plot stuff
-df <- data.frame(
+df <- tibble(
   Time = as.numeric(time(Nile)),
-  Original = as.numeric(Nile)
-)
+  Original = as.numeric(Nile),
+  `Default α` = c(NA, as.numeric(m$fitted[, "xhat"])),
+  `α = 0.1` = c(NA, as.numeric(s$fitted[, "xhat"])),
+  `α = 0.9` = c(NA, as.numeric(t$fitted[, "xhat"]))
+) %>%
+  pivot_longer(-Time, names_to = "var", values_to = "val")
 
-df_fit <- data.frame(
-  Time = as.numeric(time(Nile))[-1],
-  Default = as.numeric(m$fitted[,"xhat"]),
-  Alpha_0.1 = as.numeric(s$fitted[,"xhat"]),
-  Alpha_0.9 = as.numeric(t$fitted[,"xhat"])
-)
+df %>%
+  filter(var %in% c("Original", "Default α"))  %>%
+  ggplot(aes(x = Time, y = val, color = var)) +
+    geom_line() +
+    scale_color_manual(
+      values = c("Original" = "black", "Default α" = "red")
+    ) +
+    labs(
+      title = "Simple Exponential Smoothing (Nile)",
+      x = NULL,
+      y = NULL,
+      color = NULL,
+      linetype = NULL
+    ) +
+    theme(legend.position = "inside", legend.position.inside = c(0.125, 0.2))
 
-ggplot() +
-  geom_line(data = df, aes(Time, Original),
-            color = "black", linewidth = 0.8) +
-  geom_line(data = df_fit,
-            aes(Time, Default, color = "Default α", linetype = "Default α"),
-            linewidth = 0.6) +
-  geom_line(data = df_fit,
-            aes(Time, Alpha_0.1, color = "α = 0.1", linetype = "α = 0.1"),
-            linewidth = 0.6) +
-  geom_line(data = df_fit,
-            aes(Time, Alpha_0.9, color = "α = 0.9", linetype = "α = 0.9"),
-            linewidth = 0.6) +
-  scale_color_manual(values = c("Default α" = "blue",
-                                "α = 0.1" = "red",
-                                "α = 0.9" = "orange")) +
-  scale_linetype_manual(values = c("Default α" = "dashed",
-                                   "α = 0.1" = "dotted",
-                                   "α = 0.9" = "dotdash")) +
-  labs(title = "Simple Exponential Smoothing (Nile)",
-       x = "Time",
-       y = NULL,
-       color = NULL,
-       linetype = NULL) +
-  theme_classic() +
-  theme(plot.title = element_text(hjust = 0.5))
-
+df %>%
+  filter(var %in% c("Original", "α = 0.1", "α = 0.9"))  %>%
+  ggplot(aes(x = Time, y = val, color = var, linetype = var)) +
+    geom_line() +
+    scale_color_manual(
+      values = c("Original" = "black", "α = 0.1" = "red", "α = 0.9" = "blue")
+    ) +
+    scale_linetype_manual(
+      values = c("Original" = "solid", "α = 0.1" = "dashed", "α = 0.9" = "dashed")
+    ) +
+    labs(
+      title = "Comparison of smoothing strength",
+      x = NULL,
+      y = NULL,
+      color = NULL,
+      linetype = NULL
+    ) +
+    theme(legend.position = "inside", legend.position.inside = c(0.1, 0.2))
 
 ```
 
 For alpha = 0.2466, the MAPE is 0.1307; for alpha = 0.1, the MAPE is 0.1348; for alpha = 0.9, the MAPE is 0.1450.
-Using Holt-Winters with beta = gamma = 0, the estimated alpha is 0.2466. As the smoothing parameter, alpha controls the responsiveness of the level estimate. When alpha = 0.1, the prediction depends on many earlier values, making for stable and slow predictions. When alpha = 0.9, the model is highly adaptive, reacting strongly to the most recent observation. Thus,forecasts adjust quickly, but are also susceptible to noise. Therefore, it makes sense that the value chosen by the model to minimize the loss function is a compromise between the two. In fact, the drop observed at the end of the recorded series is captured most strongly by setting alpha = 0.9, and least so by setting alpha = 0.1, which yields the highest predicted value.
+Using Holt-Winters with beta = gamma = 0, the estimated alpha is 0.2466. As the smoothing parameter, alpha controls the responsiveness of the level estimate. When alpha = 0.1, the prediction depends on many earlier values, making for stable and slow predictions. When alpha = 0.9, the model is highly adaptive, reacting strongly to the most recent observation. Thus, forecasts adjust quickly, but are also susceptible to noise. Therefore, it makes sense that the value chosen by the model to minimize the loss function is a compromise between the two. In fact, the drop observed at the end of the recorded series is captured most strongly by setting alpha = 0.9, and least so by setting alpha = 0.1, which yields the highest predicted value.
 In particular, the MAPE is lowest for alpha = 0.2466; highest for alpha = 0.9, confirming that the model's chosen alpha maximizes predictive performance.
 
-\bigskip
-
-\textcolor{red}{**EXERCISE 5**} \bigskip
+# EXERCISE 5
 
 ```{r, COVID data, fig.width=10, fig.height=3}
 # Exercise 5
 # extraction, cleaning
-data_covid <- read.table("coronavirus-data.txt", header=TRUE, fill = TRUE)
+data_covid <- read.table("coronavirus-data.txt", header = TRUE, fill = TRUE)
 
-dates <- seq.Date(as.Date("2020-02-20"), by = "day", length.out = nrow(data_covid))
+dates <- seq.Date(
+  as.Date("2020-02-20"),
+  by = "day",
+  length.out = nrow(data_covid)
+)
 xts_data_covid <- xts(data_covid |> dplyr::select(-day), order.by = dates)
 
 # plot for all vars
@@ -426,8 +407,8 @@ df_plot <- df_wide |>
 
 ggplot(df_plot, aes(x = Index, y = value)) +
   geom_line() +
-  facet_wrap(~ variable, scales = "free_y") +
-  theme_minimal()
+  facet_wrap(~variable, scales = "free_y") +
+  labs(x = NULL, y = NULL)
 
 # new vars of interest, non-cumulative
 new_cases <- diff(data_covid$contagion, lag = 1)
@@ -450,31 +431,35 @@ df_long <- pivot_longer(
 
 ggplot(df_long, aes(x = date, y = value)) +
   geom_line() +
-  facet_wrap(~ Panel, ncol = 2, scales = "free_y") +
+  facet_wrap(~Panel, ncol = 2, scales = "free_y") +
   labs(
     title = "Daily new cases and deaths",
-    x = "Date",
-    y = ""
-  ) +
-  theme_minimal()
+    x = NULL,
+    y = NULL
+  )
 
+```
+
+```{r COVID decom, fig.width=10, fig.height=4}
 # decomposition analysis + plot
 cases_ts <- ts(new_cases, start = c(2020, 8), frequency = 7)
 deaths_ts <- ts(new_deaths, start = c(2020, 8), frequency = 7)
-stl_fit <- stl(cases_ts, s.window = "periodic")
+stl_fit <- stl(cases_ts, s.window = 7)
 
 stl_ts <- cbind(
-  Observed  = cases_ts,
-  Trend     = stl_fit$time.series[, "trend"],
-  Seasonal  = stl_fit$time.series[, "seasonal"],
+  Observed = cases_ts,
+  Trend = stl_fit$time.series[, "trend"],
+  Seasonal = stl_fit$time.series[, "seasonal"],
   Remainder = stl_fit$time.series[, "remainder"]
 )
 plot_multi_ts_gg(
   stl_ts,
-  title = "STL decomposition of daily new cases",
-  theme_fn = theme_minimal
+  title = "STL decomposition of daily new cases"
 )
 
+```
+
+```{r COVID ses}
 # 1st ES for the whole sample
 ses_fit <- HoltWinters(cases_ts, beta = TRUE, gamma = TRUE)
 #ses_fit$alpha
@@ -494,10 +479,10 @@ ses_fit2 <- HoltWinters(cases_ts_aug, beta = TRUE, gamma = TRUE)
 
 ```
 
-The raw data evidences an upward trend in both cumulative cases (contagion) and deaths, and strong growth in testing over time. It is also clear that intensive care facilities experienced epidemic waves.
-Since the contagion and deaths measures accumulate flows, we have constructed a time series including daily new cases and analyzed it.
-Graphically, this series displays clear epidemic waves, in particular in the later months of 2020. STL decomposition confirms the presence of a trend component and a clear weekly seasonal component, which we believe to be consistent with reporting effects.
-Simple exponential smoothing via Holt-Winters yields a smoothing parameter alpha = 0.88, implying strong persistence. Restricting the sample to observations from 1 August 2020 reduces alpha to 0.41, implying that the epidemic wave that occurred in the latter part of that year is associated with much stronger and smoother trend and seasonal components.
+The raw data shows cumulative cases (contagion), deaths, and strong growth in testing over time. It is also clear that intensive care facilities experienced epidemic waves.
+Since the contagion and deaths measures cumulative flows, we have constructed a differenced time series of daily new cases.
+Graphically, this series displays clear epidemic waves, in particular in the later months of 2020. STL decomposition confirms the presence of a trend component and a clear weekly seasonal component, which we believe to be related to reporting effects.
+Simple exponential smoothing via Holt-Winters yields a smoothing parameter alpha = 0.88, implying weak smoothing. Restricting the sample to observations from 1 August 2020 reduces alpha to 0.41, implying that the epidemic wave that occurred in the latter part of that year is associated with much stronger and smoother trend and seasonal components.
 Overall, all the series are non-stationary and characterized by wavy effects.
 
 # Appendix: All code for this report

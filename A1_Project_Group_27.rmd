@@ -15,7 +15,7 @@ library(forecast)
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 ```
 
-### Exploratory Analysis 
+### Exploratory Analysis
 
 ```{r, fig.height=4, fig.width=6}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
@@ -35,24 +35,75 @@ The marginal variances appear relatively stable, as the dispersion does not incr
 
 ### Task 1
 
-```{r task1_additive, fig.height=5, fig.width=6}
-dec_add <- decompose(gistemp_ts, type = "additive")
-plot(dec_add, main = "")
-title("Classical Additive Decomposition of GISTEMP")
+```{r task1_decompo, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(tidyr)
+library(gridExtra)
 
+#to ensure positive values when needed
+shift <- 0
+if (min(gistemp_ts, na.rm = TRUE) <= 0) {
+  shift <- abs(min(gistemp_ts, na.rm = TRUE)) + 0.01
+}
+gistemp_pos <- gistemp_ts + shift
+
+dec_add  <- decompose(gistemp_ts,  type = "additive")
+dec_mult <- decompose(gistemp_pos, type = "multiplicative")
+stl_fit  <- stl(gistemp_ts, s.window = "periodic")
+
+#conversion of the decompose() object for a cleaner output
+df_decomp <- function(dec_obj) {
+  data.frame(
+    t = as.numeric(time(dec_obj$x)),
+    observed = as.numeric(dec_obj$x),
+    trend = as.numeric(dec_obj$trend),
+    seasonal = as.numeric(dec_obj$seasonal),
+    residual = as.numeric(dec_obj$random)
+  )
+}
+
+df_stl <- function(stl_obj, y) {
+  t <- as.numeric(time(stl_obj$time.series[, 1])) #extracting time index 
+  data.frame(
+    t = t,
+    observed = as.numeric(y),
+    trend = as.numeric(stl_obj$time.series[, "trend"]),
+    seasonal = as.numeric(stl_obj$time.series[, "seasonal"]),
+    residual = as.numeric(stl_obj$time.series[, "remainder"])
+  )
+}
+
+#formatting as a panel using subplots
+panel <- function(df, main_title) {
+  base_theme <- theme_minimal(base_size = 10) +
+    theme(
+      plot.title = element_text(face = "bold", size = 10),
+      panel.grid.minor = element_blank()
+    )
+
+  p_observed <- ggplot(df, aes(t, observed)) + geom_line(size = 0.3) +
+    labs(title = "Observed", x = NULL, y = NULL) + base_theme
+
+  p_trend <- ggplot(df, aes(t, trend)) + geom_line(size = 0.3) +
+    labs(title = "Trend", x = NULL, y = NULL) + base_theme
+
+  p_seasonal <- ggplot(df, aes(t, seasonal)) + geom_line(size = 0.3) +
+    labs(title = "Seasonal", x = NULL, y = NULL) + base_theme
+
+  p_residual <- ggplot(df, aes(t, residual)) + geom_line(size = 0.3) +
+    labs(title = "Residual", x = NULL, y = NULL) + base_theme
+
+  # Arrange in a 2x2 grid and RETURN it (important for knitting)
+  gridExtra::grid.arrange(
+    p_observed, p_trend,
+    p_seasonal, p_residual,
+    ncol = 2,
+    top = grid::textGrob(main_title, gp = grid::gpar(fontface = "bold", fontsize = 14))
+  )
+}
+
+#using grid to display panels
+grid::grid.draw(panel(df_decomp(dec_add),  "Additive decomposition (GISTEMP)"))
+grid::grid.draw(panel(df_decomp(dec_mult), "Multiplicative decomposition (shifted GISTEMP)"))
+grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic seasonality)"))
 ```
-
-```{r}
-dec_add <- decompose(gistemp_ts, type = "additive")
-plot(dec_add)
-title("Additive decomposition")
-
-dec_mult <- decompose(gistemp_ts, type = "multiplicative")
-plot(dec_mult)
-title("Multiplicative decomposition")
-
-stl_fit <- stl(gistemp_ts, s.window = "periodic")
-plot(stl_fit)
-title("STL decomposition")
-```
-cdf2f5d (Update decomposition task)

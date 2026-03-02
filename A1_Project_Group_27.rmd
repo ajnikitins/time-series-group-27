@@ -8,11 +8,51 @@ fontsize: 10pt
 geometry: margin=2cm
 ---
 
-```{r, setup, include=FALSE}
+```{r setup, include=FALSE}
+rm(list = ls())
+library(forecast)
 
-# Disable writing code chunks and messages to the output file
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+### Exploratory Analysis 
+
+```{r, fig.height=4, fig.width=6}
+df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
+#head(df)
+monthly_matrix <- as.matrix(df[, 2:13])
+monthly_vector <- as.numeric(t(monthly_matrix))
+
+gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
+plot(gistemp_ts, main = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)", xlab = "Year", ylab = "Temperature anomalies  (°C)", xaxt = "n")
+axis(1, at = seq(1880, 2020, by = 20))
+abline(h = 0, lty = 2, col='red')
+```
+
+The time series shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
+
+The marginal variances appear relatively stable, as the dispersion does not increase with the level of the series. There is no strong visual evidence of heteroskedasticity. The variance can therefore be considered approximately constant over time. This observation supports the use of an additive decomposition rather than a multiplicative one.
+
+### Task 1
+
+```{r task1_additive, fig.height=5, fig.width=6}
+dec_add <- decompose(gistemp_ts, type = "additive")
+plot(dec_add, main = "")
+title("Classical Additive Decomposition of GISTEMP")
 
 ```
-# Anna-Bella setup test
-# Madelief test commit
+
+```{r}
+dec_add <- decompose(gistemp_ts, type = "additive")
+plot(dec_add)
+title("Additive decomposition")
+
+dec_mult <- decompose(gistemp_ts, type = "multiplicative")
+plot(dec_mult)
+title("Multiplicative decomposition")
+
+stl_fit <- stl(gistemp_ts, s.window = "periodic")
+plot(stl_fit)
+title("STL decomposition")
+```
+cdf2f5d (Update decomposition task)

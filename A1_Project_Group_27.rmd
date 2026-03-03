@@ -46,7 +46,10 @@ if (min(gistemp_ts, na.rm = TRUE) <= 0) {
   shift <- abs(min(gistemp_ts, na.rm = TRUE)) + 0.01
 }
 gistemp_pos <- gistemp_ts + shift
+```
 
+
+```{r task1_decompo, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
 dec_add  <- decompose(gistemp_ts,  type = "additive")
 dec_mult <- decompose(gistemp_pos, type = "multiplicative")
 stl_fit  <- stl(gistemp_ts, s.window = "periodic")
@@ -107,3 +110,66 @@ grid::grid.draw(panel(df_decomp(dec_add),  "Additive decomposition (GISTEMP)"))
 grid::grid.draw(panel(df_decomp(dec_mult), "Multiplicative decomposition (shifted GISTEMP)"))
 grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic seasonality)"))
 ```
+
+
+### Task 2
+
+```{r}
+seasonal_component <- stl_fit$time.series[, "seasonal"]
+deseasonalized <- gistemp_ts - seasonal_component
+train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
+
+par(mar = c(4,4,2,1))  # cleaner margins
+
+plot(train,
+     main = "Deseasonalized Northern Hemisphere temperature anomalies (1950–2010)",
+     xlab = "Year",
+     ylab = "Temperature anomaly (°C)",
+     col = "black",
+     lwd = 1,
+     cex.main = 1,
+     cex.lab = 0.9,
+     cex.axis = 0.8)
+
+abline(h = 0, lty = 2, col = "red")
+
+```
+
+
+```{r}
+
+library(forecast)
+
+## --- Fit Holt's linear method (beta = TRUE, gamma = FALSE) ---
+fit_holt <- holt(train, h = 1)
+
+alpha_holt <- fit_holt$model$par["alpha"]
+beta_holt  <- fit_holt$model$par["beta"]
+
+alpha_holt  # 0.288203
+beta_holt   # 0.0003834748
+
+## --- One-step-ahead fitted values vs observed ---
+par(mar = c(4, 4, 2, 1))
+
+plot(train,
+     main     = "Holt one-step-ahead forecasts vs observed (1950–2010)",
+     xlab     = "Year",
+     ylab     = "Temperature anomaly (°C)",
+     col      = "black",
+     lwd      = 1,
+     cex.main = 1,
+     cex.lab  = 0.9,
+     cex.axis = 0.8)
+
+lines(fitted(fit_holt), col = "red", lwd = 1.2)
+
+legend("topleft",
+       legend = c("Observed", "One-step-ahead forecast"),
+       col    = c("black", "red"),
+       lwd    = c(1, 1.2),
+       cex    = 0.8,
+       bty    = "n")
+
+```
+

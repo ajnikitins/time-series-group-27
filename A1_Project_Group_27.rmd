@@ -210,3 +210,154 @@ legend("topleft",
 
 ```
 
+```{r}
+# Forecasting the deseasonalized series (15 years ahead = 180 months)
+library(forecast)
+
+h_years <- 15
+h_months <- h_years * 12
+
+# --- Refit/compute forecasts with holt() (forecast package) on the deseasonalized train ---
+# (train is already the deseasonalized ts for Jan1950-Dec2010 from your previous code)
+holt_fc <- holt(train, h = h_months, level = c(80, 95), damped = FALSE)
+
+# -- Forecast from your HoltWinters fit (already named fit_holt2) --
+# fit_holt2 was fitted to 'train' earlier via HoltWinters(train, beta=TRUE, gamma=FALSE)
+hw_fc <- forecast(fit_holt2, h = h_months, level = c(80, 95))
+
+# --- Plot deseasonalized observed (train) and forecasts (both methods) ---
+par(mfrow = c(1,2), mar = c(4,4,2,1))
+
+# Panel A: holt() forecast (deseasonalized)
+plot(window(deseasonalized, start = c(1950,1), end = c(2010,12)),
+     main = "Holt forecasts on deseasonalized series (1950–2010 train)",
+     xlab = "Year", ylab = "Deseasonalized anomaly (°C)",
+     col = "black", lwd = 1)
+# add holt point forecasts and intervals
+lines(holt_fc$mean, col = "red", lwd = 1.2)
+# 80% interval
+lines(ts(holt_fc$lower[ ,1], start = time(holt_fc$mean)[1], frequency = 12), col = "red", lty = 2)
+lines(ts(holt_fc$upper[ ,1], start = time(holt_fc$mean)[1], frequency = 12), col = "red", lty = 2)
+# 95% interval
+lines(ts(holt_fc$lower[ ,2], start = time(holt_fc$mean)[1], frequency = 12), col = "red", lty = 3)
+lines(ts(holt_fc$upper[ ,2], start = time(holt_fc$mean)[1], frequency = 12), col = "red", lty = 3)
+
+legend("topleft", legend = c("Observed (train)", "Holt mean", "80% PI", "95% PI"),
+       col = c("black", "red", "red", "red"), lwd = c(1,1.2,1,1), lty = c(1,1,2,3),
+       bty = "n", cex = 0.8)
+
+# Panel B: Holt-Winters (HoltWinters fitted to train) forecast
+plot(window(deseasonalized, start = c(1950,1), end = c(2010,12)),
+     main = "Holt-Winters (via forecast()) on deseasonalized series",
+     xlab = "Year", ylab = "Deseasonalized anomaly (°C)",
+     col = "black", lwd = 1)
+lines(hw_fc$mean, col = "blue", lwd = 1.2)
+lines(ts(hw_fc$lower[ ,1], start = time(hw_fc$mean)[1], frequency = 12), col = "blue", lty = 2)
+lines(ts(hw_fc$upper[ ,1], start = time(hw_fc$mean)[1], frequency = 12), col = "blue", lty = 2)
+lines(ts(hw_fc$lower[ ,2], start = time(hw_fc$mean)[1], frequency = 12), col = "blue", lty = 3)
+lines(ts(hw_fc$upper[ ,2], start = time(hw_fc$mean)[1], frequency = 12), col = "blue", lty = 3)
+
+legend("topleft", legend = c("Observed (train)", "HW mean", "80% PI", "95% PI"),
+       col = c("black", "blue", "blue", "blue"), lwd = c(1,1.2,1,1), lty = c(1,1,2,3),
+       bty = "n", cex = 0.8)
+
+# reset plotting
+par(mfrow = c(1,1))
+
+# --- MAE evaluation at horizons if observed out-of-sample exists (deseasonalized) ---
+# observed out-of-sample deseasonalized values (2011-...): may be shorter than full 15 years depending on your CSV
+obs_oos <- window(deseasonalized, start = c(2011,1), end = c(2010 + h_years, 12))
+
+horizons <- c(1, 5, 10, 15)
+mae_table <- data.frame(horizon_years = horizons, MAE_holt = NA_real_, MAE_hw = NA_real_)
+
+for (i in seq_along(horizons)) {
+  yrs <- horizons[i]
+  m <- yrs * 12
+  # ensure we have at least m observed months after 2010
+  if (length(obs_oos) >= m) {
+    obs_slice <- as.numeric(window(deseasonalized, start = c(2011,1), end = c(2010 + yrs, 12)))
+    holt_slice <- as.numeric(holt_fc$mean[1:m])
+    hw_slice   <- as.numeric(hw_fc$mean[1:m])
+    mae_table$MAE_holt[i] <- mean(abs(obs_slice - holt_slice))
+    mae_table$MAE_hw[i]   <- mean(abs(obs_slice - hw_slice))
+  } else {
+    mae_table$MAE_holt[i] <- NA
+    mae_table$MAE_hw[i]   <- NA
+  }
+}
+
+# write MAE table for the report (and print to console for quick check)
+write.csv(mae_table, "mae_task2_holt_vs_hw.csv", row.names = FALSE)
+mae_table
+```
+
+```{r}
+## --- 15-year forecast from end of 2010 ---
+fit_holt_forecast <- holt(train, h = 15 * 12)
+
+autoplot(fit_holt_forecast) +
+  autolayer(train, series = "Observed") +
+  labs(
+    title  = "15-year Holt forecast of deseasonalized temperature anomalies (2011–2025)",
+    x      = "Year",
+    y      = "Temperature anomaly (°C)"
+  ) +
+  theme_minimal(base_size = 10) +
+  theme(legend.title = element_blank())
+```
+
+
+```{r}
+library(forecast)
+library(ggplot2)
+
+## --- 15-year forecast from end of 2010 ---
+fit_holt_forecast <- forecast(holt(train, h = 15 * 12))
+
+fc_df <- data.frame(
+  time = as.numeric(time(fit_holt_forecast$mean)),
+  mean = as.numeric(fit_holt_forecast$mean),
+  lo80 = as.numeric(fit_holt_forecast$lower[, 1]),
+  hi80 = as.numeric(fit_holt_forecast$upper[, 1]),
+  lo95 = as.numeric(fit_holt_forecast$lower[, 2]),
+  hi95 = as.numeric(fit_holt_forecast$upper[, 2])
+)
+
+train_df <- data.frame(
+  time  = as.numeric(time(train)),
+  value = as.numeric(train)
+)
+
+ggplot() +
+  geom_ribbon(data = fc_df, aes(x = time, ymin = lo95, ymax = hi95), fill = "steelblue", alpha = 0.2) +
+  geom_ribbon(data = fc_df, aes(x = time, ymin = lo80, ymax = hi80), fill = "steelblue", alpha = 0.3) +
+  geom_line(data = train_df, aes(x = time, y = value), colour = "black", linewidth = 0.5) +
+  geom_line(data = fc_df, aes(x = time, y = mean), colour = "steelblue", linewidth = 0.8) +
+  labs(
+    title = "15-year Holt forecast of deseasonalized temperature anomalies (2011–2025)",
+    x     = "Year",
+    y     = "Temperature anomaly (°C)"
+  ) +
+  theme_minimal(base_size = 10)
+```
+```{r}
+## --- MAE at horizons: 1, 5, 10, 15 years ---
+actual <- window(deseasonalized, start = c(2011, 1), end = c(2025, 12))
+forecasts <- fit_holt_forecast$mean  # point forecasts from holt
+
+horizons <- c(1, 5, 10, 15)
+mae_results <- sapply(horizons, function(yr) {
+  h <- yr * 12
+  mean(abs(forecasts[1:h] - actual[1:h]))
+})
+
+mae_table <- data.frame(
+  horizon_years = horizons,
+  MAE_holt      = mae_results
+)
+
+knitr::kable(mae_table, digits = 7, align = c("r", "r"),
+             caption = "MAE at increasing forecast horizons")
+
+```

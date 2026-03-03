@@ -139,7 +139,7 @@ abline(h = 0, lty = 2, col = "red")
 
 
 ```{r}
-## --- Holt-Winters with trend (gamma = FALSE) ---
+## Holt-Winters with trend (gamma = FALSE)
 fit_holtwinters <- HoltWinters(train, gamma = FALSE)
 
 # Extract parameters correctly
@@ -149,7 +149,7 @@ beta_holtwinters  <- fit_holtwinters$beta    # numeric estimated beta — this i
 alpha_holtwinters
 beta_holtwinters
 
-## --- One-step-ahead fitted values vs observed ---
+# One-step-ahead fitted values vs observed 
 par(mar = c(4, 4, 2, 1))
 
 plot(train,

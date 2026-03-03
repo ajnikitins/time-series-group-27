@@ -16,6 +16,29 @@ library(tidyr)
 library(gridExtra)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+
+plot_ts_gg <- function(
+    x,
+    title = NULL,
+    facet_ncol = 1,
+    wrap_width = 45
+) {
+  if (!inherits(x, "ts")) {
+    stop("Input must be ts.")
+  }
+  
+  df <- tibble(
+    Time = as.numeric(time(x)),
+    Value = as.numeric(x)
+  )
+  
+  p <- ggplot(df, aes(Time, Value)) +
+    geom_line() +
+    labs(title = title, x = NULL, y = NULL)+
+    theme_minimal()
+  
+  p
+}
 ```
 
 ### Exploratory Analysis
@@ -30,6 +53,11 @@ gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
 plot(gistemp_ts, main = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)", xlab = "Year", ylab = "Temperature anomalies  (°C)", xaxt = "n")
 axis(1, at = seq(1880, 2020, by = 20))
 abline(h = 0, lty = 2, col='red')
+
+plot_ts_gg(
+  gistemp_ts,
+  title = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)"
+)
 ```
 
 The time series shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
@@ -120,7 +148,9 @@ seasonal_component <- stl_fit$time.series[, "seasonal"]
 deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
-par(mar = c(4,4,2,1))  # cleaner margins
+
+# needs changing
+par(mar = c(4,4,2,1))  
 
 plot(train,
      main = "Deseasonalized Northern Hemisphere temperature anomalies (1950–2010)",
@@ -143,8 +173,8 @@ abline(h = 0, lty = 2, col = "red")
 fit_holtwinters <- HoltWinters(train, gamma = FALSE)
 
 # Extract parameters correctly
-alpha_holtwinters <- fit_holtwinters$alpha   # numeric estimated alpha
-beta_holtwinters  <- fit_holtwinters$beta    # numeric estimated beta — this is the fix!
+alpha_holtwinters <- fit_holtwinters$alpha  
+beta_holtwinters  <- fit_holtwinters$beta   
 
 alpha_holtwinters
 beta_holtwinters

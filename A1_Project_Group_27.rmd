@@ -6,6 +6,10 @@ output:
     latex_engine: xelatex
 fontsize: 10pt
 geometry: margin=2cm
+header-includes:
+  - \usepackage{float}
+  - \setlength{\textfloatsep}{6pt}
+  - \setlength{\intextsep}{6pt}
 ---
 
 ```{r setup, include=FALSE}
@@ -35,9 +39,8 @@ The marginal variances appear relatively stable, as the dispersion does not incr
 
 ### Task 1
 
-```{r task1_decompo, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
+```{r task1_decompo, message=FALSE, warning=FALSE}
 library(ggplot2)
-library(tidyr)
 library(gridExtra)
 
 #to ensure positive values when needed
@@ -46,10 +49,7 @@ if (min(gistemp_ts, na.rm = TRUE) <= 0) {
   shift <- abs(min(gistemp_ts, na.rm = TRUE)) + 0.01
 }
 gistemp_pos <- gistemp_ts + shift
-```
 
-
-```{r task1_decompo, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
 dec_add  <- decompose(gistemp_ts,  type = "additive")
 dec_mult <- decompose(gistemp_pos, type = "multiplicative")
 stl_fit  <- stl(gistemp_ts, s.window = "periodic")
@@ -77,47 +77,123 @@ df_stl <- function(stl_obj, y) {
   )
 }
 
-#formatting as a panel using subplots
-panel <- function(df, main_title) {
-  base_theme <- theme_minimal(base_size = 10) +
-    theme(
-      plot.title = element_text(face = "bold", size = 10),
-      panel.grid.minor = element_blank()
-    )
+df_add  <- df_decomp(dec_add)
+df_mult <- df_decomp(dec_mult)
+df_s    <- df_stl(stl_fit, gistemp_ts)
+```
 
-  p_observed <- ggplot(df, aes(t, observed)) + geom_line(size = 0.3) +
-    labs(title = "Observed", x = NULL, y = NULL) + base_theme
+```{r task1_trend, fig.width=10, fig.height=4, message=FALSE, warning=FALSE, fig.pos="H"}
 
-  p_trend <- ggplot(df, aes(t, trend)) + geom_line(size = 0.3) +
-    labs(title = "Trend", x = NULL, y = NULL) + base_theme
+op <- par(mfrow = c(1, 2))
+plot(df_add$t, df_add$trend, type = "l", main = "Trend (Additive)", xlab = "Year", ylab = "")
+plot(df_mult$t, df_mult$trend, type = "l", main = "Trend (Multiplicative)", xlab = "Year", ylab = "")
+par(op)
+```
+The trend component clearly reveals a long-term warming pattern in the GISTEMP data. After relatively moderate fluctuations in the late 19th and early 20th centuries, temperatures begin to increase gradually. A temporary stabilization is visible around the mid-20th century, with a relatively flatter slope between 1940 and 1970 suggesting a slowdown in warming. However, from the late 1970s onward, the trend exhibits a much steeper slope, indicating a strong and persistent acceleration in warming.
+The additive and multiplicative decompositions produce nearly identical trend components, indicating that the estimated long-term dynamics are robust to the choice of model.
 
-  #aggregation for the seasonality : we create average seasonal profile over the 12 months
-  df_seasonal <- aggregate(seasonal ~ month, data = df, FUN = mean, na.rm = TRUE)
-  p_seasonal <- ggplot(df_seasonal, aes(month, seasonal)) +
-    geom_line(size = 0.4) + geom_point(size = 0.8) +
+```{r task1_seasonality, fig.width=10, fig.height=3.2, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+
+#theme to prevent overlap
+base_theme <- theme_minimal(base_size = 10) +
+  theme(plot.title = element_text(face = "bold", size = 9),
+        plot.margin = margin(2, 6, 2, 2),
+        panel.grid.minor = element_blank())
+
+ggplot(df_add, aes(t, seasonal)) +
+  geom_line(size = 0.2) +
+  labs(
+    title = "Seasonal component over the full sample (dense monthly pattern)",
+    x = "Year", y = NULL
+  ) +
+  base_theme
+```
+Because the series is monthly and spans more than a century, the seasonal component plotted over the full sample is visually dense and hard to interpret. For readability, we therefore zoom in on a recent subperiod (from 2000 onward), which preserves the seasonal structure while avoiding overplotting.
+
+```{r task1_seasonality_zoom, fig.width=13, fig.height=6, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+
+df_add_z  <- subset(df_add,  t >= 2000) #from year 2000
+df_mult_z <- subset(df_mult, t >= 2000)
+df_s_z    <- subset(df_s,    t >= 2000)
+
+mk_seas_time <- function(df, ttl, ref_line) {
+  ggplot(df, aes(t, seasonal)) +
+    geom_line(size = 0.25) +
+    geom_hline(yintercept = ref_line, linetype = "dashed", size = 0.25, col='red') +
+    labs(title = ttl, x = "Year", y = NULL) +
+    base_theme +
+    theme(plot.title = element_text(size = 9))
+}
+
+p_add  <- mk_seas_time(df_add_z, "Additive seasonality, since 2000",0)
+
+p_stl  <- mk_seas_time(df_s_z, "STL seasonality (LOESS), since 2000",0)
+
+p_mult <- mk_seas_time(df_mult_z, "Multiplicative seasonality, since 2000",1)
+
+gridExtra::grid.arrange(p_add, p_stl, p_mult, ncol = 3)
+
+```
+The zoomed figures confirm that the seasonal pattern remains highly stable over time. We don not observe significant change in amplitude over the recent period, suggesting that seasonality is approximately constant. As, in the multiplicative decompositon, the seasonal component is expressed as a multiplicative factor, the plot is centered around 1, whereas in the additive (and STL) decomposition it is centered around 0.
+
+To better understand the intra-annual structure of the seasonal component, we now examine the average seasonal profile by month. Aggregating across years provides a more interpretable representation of the annual cycle of the series.
+
+```{r task1_seasonality_aggregate, fig.width=13, fig.height=6, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+
+#We create seasonal profile (12months average) for readability
+agg_add  <- aggregate(seasonal ~ month, data = df_add,  FUN = mean, na.rm = TRUE)
+agg_mult <- aggregate(seasonal ~ month, data = df_mult, FUN = mean, na.rm = TRUE)
+agg_stl  <- aggregate(seasonal ~ month, data = df_s,    FUN = mean, na.rm = TRUE)
+
+mk_month <- function(df_avg, ttl, ref_line) {
+  ggplot(df_avg, aes(month, seasonal)) +
+    geom_hline(yintercept = ref_line, linetype = "dashed", size = 0.25, col='red') +
+    geom_line(size = 0.45) +
+    geom_point(size = 1) +
     scale_x_continuous(
       breaks = 1:12,
       labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
-    ) + labs(title = "Seasonal", x = NULL, y = NULL) + base_theme
-
-  p_residual <- ggplot(df, aes(t, residual)) + geom_line(size = 0.3) +
-    labs(title = "Residual", x = NULL, y = NULL) + base_theme
-
-  # Arrange in a 2x2 grid and RETURN it (important for knitting)
-  gridExtra::grid.arrange(
-    p_observed, p_trend,
-    p_seasonal, p_residual,
-    ncol = 2,
-    top = grid::textGrob(main_title, gp = grid::gpar(fontface = "bold", fontsize = 14))
-  )
+    ) +
+    labs(title = ttl, x = "Month", y = NULL) +
+    base_theme +
+    theme(plot.title = element_text(size = 9))
 }
 
-#using grid to display panels
-grid::grid.draw(panel(df_decomp(dec_add),  "Additive decomposition (GISTEMP)"))
-grid::grid.draw(panel(df_decomp(dec_mult), "Multiplicative decomposition (shifted GISTEMP)"))
-grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic seasonality)"))
-```
+q_add  <- mk_month(agg_add,  "Average seasonal profile : Additive", 0)
+q_stl  <- mk_month(agg_stl,  "Average seasonal profile : STL", 0)
+q_mult <- mk_month(agg_mult, "Average seasonal profile : Multiplicative", 1)
 
+gridExtra::grid.arrange(q_add, q_stl, q_mult, ncol = 3)
+
+```
+The aggregated monthly profiles confirm a clear and regular annual seasonal cycle. For instance, late summer months such as August tend to exhibit negative seasonal effects, whereas autumn months such as October often contribute positively to the seasonal component. This produces a stable intra-annual structure that is remarkably consistent across additive, multiplicative, and STL decompositions. Although stl() allows for time-varying seasonality through LOESS smoothing, the close similarity of the results suggests that seasonality remains approximately constant over time, making the classical constant-seasonality assumption appropriate for the GISTEMP data.
+
+```{r task1_residuals, fig.width=13, fig.height=4, message=FALSE, warning=FALSE}
+library(ggplot2)
+library(gridExtra)
+
+mk_residuals <- function(df, ttl) {
+  ggplot(df, aes(t, residual)) +
+    geom_line(size = 0.25) +
+    geom_hline(yintercept = 0, linetype = "dashed", size = 0.25, col='red') +
+    labs(title = ttl, x = "Year", y = NULL) +
+    base_theme +
+    theme(plot.title = element_text(size = 9))
+}
+
+res_add  <- mk_residuals(df_add,"Residuals : Additive")
+res_stl  <- mk_residuals(df_s,"Residuals : STL")
+res_mult <- mk_residuals(df_mult,"Residuals : Multiplicative")
+
+gridExtra::grid.arrange(res_add, res_stl, res_mult, ncol = 3)
+```
+The residuals fluctuate around zero without displaying persistent patterns, which supports the adequacy of the decomposition. While occasional extreme spikes are visible, they remain isolated and do not suggest structural misspecification. Overall, the unexplained variation appears mostly irregular rather than systematic, and no strong evidence of remaining seasonality or trend is detected in the residuals.
 
 ### Task 2
 
@@ -141,7 +217,6 @@ plot(train,
 abline(h = 0, lty = 2, col = "red")
 
 ```
-
 
 ```{r}
 
@@ -348,6 +423,7 @@ ggplot() +
   ) +
   theme_minimal(base_size = 10)
 ```
+
 ```{r}
 ## --- MAE at horizons: 1, 5, 10, 15 years ---
 actual <- window(deseasonalized, start = c(2011, 1), end = c(2025, 12))
@@ -368,3 +444,4 @@ knitr::kable(mae_table, digits = 7, align = c("r", "r"),
              caption = "MAE at increasing forecast horizons")
 
 ```
+

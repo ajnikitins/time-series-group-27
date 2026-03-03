@@ -58,6 +58,7 @@ stl_fit  <- stl(gistemp_ts, s.window = "periodic")
 df_decomp <- function(dec_obj) {
   data.frame(
     t = as.numeric(time(dec_obj$x)),
+    month = as.integer(cycle(dec_obj$x)), #monthly index to aggregate seasonal effects for better visualization
     observed = as.numeric(dec_obj$x),
     trend = as.numeric(dec_obj$trend),
     seasonal = as.numeric(dec_obj$seasonal),
@@ -66,9 +67,9 @@ df_decomp <- function(dec_obj) {
 }
 
 df_stl <- function(stl_obj, y) {
-  t <- as.numeric(time(stl_obj$time.series[, 1])) #extracting time index 
   data.frame(
-    t = t,
+    t = as.numeric(time(stl_obj$time.series[, 1])),
+    month = as.integer(cycle(y)), #monthly index as in df_decomp
     observed = as.numeric(y),
     trend = as.numeric(stl_obj$time.series[, "trend"]),
     seasonal = as.numeric(stl_obj$time.series[, "seasonal"]),
@@ -90,8 +91,14 @@ panel <- function(df, main_title) {
   p_trend <- ggplot(df, aes(t, trend)) + geom_line(size = 0.3) +
     labs(title = "Trend", x = NULL, y = NULL) + base_theme
 
-  p_seasonal <- ggplot(df, aes(t, seasonal)) + geom_line(size = 0.3) +
-    labs(title = "Seasonal", x = NULL, y = NULL) + base_theme
+  #aggregation for the seasonality : we create average seasonal profile over the 12 months
+  df_seasonal <- aggregate(seasonal ~ month, data = df, FUN = mean, na.rm = TRUE)
+  p_seasonal <- ggplot(df_seasonal, aes(month, seasonal)) +
+    geom_line(size = 0.4) + geom_point(size = 0.8) +
+    scale_x_continuous(
+      breaks = 1:12,
+      labels = c("Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec")
+    ) + labs(title = "Seasonal", x = NULL, y = NULL) + base_theme
 
   p_residual <- ggplot(df, aes(t, residual)) + geom_line(size = 0.3) +
     labs(title = "Residual", x = NULL, y = NULL) + base_theme

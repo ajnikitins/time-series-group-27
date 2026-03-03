@@ -11,32 +11,32 @@ geometry: margin=2cm
 ```{r setup, include=FALSE}
 rm(list = ls())
 library(forecast)
-library(ggplot2)
-library(tidyr)
+library(tidyverse)
 library(gridExtra)
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
 
 plot_ts_gg <- function(
     x,
     title = NULL,
+    ylab = NULL,
     facet_ncol = 1,
     wrap_width = 45
 ) {
   if (!inherits(x, "ts")) {
     stop("Input must be ts.")
   }
-  
+
   df <- tibble(
     Time = as.numeric(time(x)),
     Value = as.numeric(x)
   )
-  
+
   p <- ggplot(df, aes(Time, Value)) +
     geom_line() +
-    labs(title = title, x = NULL, y = NULL)+
+    labs(title = title, x = NULL, y = ylab)+
     theme_minimal()
-  
+
   p
 }
 ```
@@ -50,14 +50,16 @@ monthly_matrix <- as.matrix(df[, 2:13])
 monthly_vector <- as.numeric(t(monthly_matrix))
 
 gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
-plot(gistemp_ts, main = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)", xlab = "Year", ylab = "Temperature anomalies  (°C)", xaxt = "n")
-axis(1, at = seq(1880, 2020, by = 20))
-abline(h = 0, lty = 2, col='red')
+# plot(gistemp_ts, main = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)", xlab = "Year", ylab = "Temperature anomalies  (°C)", xaxt = "n")
+# axis(1, at = seq(1880, 2020, by = 20))
+# abline(h = 0, lty = 2, col='red')
 
 plot_ts_gg(
   gistemp_ts,
-  title = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)"
-)
+  title = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)",
+  ylab = "Temperature anomalies (°C)"
+) +
+  geom_hline(yintercept = 0)
 ```
 
 The time series shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
@@ -66,7 +68,7 @@ The marginal variances appear relatively stable, as the dispersion does not incr
 
 ### Task 1
 
-```{r task1_decompo, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
+```{r task1_decompo_prep, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
 
 
 #to ensure positive values when needed
@@ -78,10 +80,13 @@ gistemp_pos <- gistemp_ts + shift
 ```
 
 
-```{r task1_decompo, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
+```{r task1_decompo, fig.width=10, fig.height=4, out.width = "100%"}
 dec_add  <- decompose(gistemp_ts,  type = "additive")
 dec_mult <- decompose(gistemp_pos, type = "multiplicative")
 stl_fit  <- stl(gistemp_ts, s.window = "periodic")
+
+# Assuming same seasonality for all decompositions
+const_seasonality <- frequency(gistemp_ts)
 
 #conversion of the decompose() object for a cleaner output
 df_decomp <- function(dec_obj) {
@@ -95,7 +100,7 @@ df_decomp <- function(dec_obj) {
 }
 
 df_stl <- function(stl_obj, y) {
-  t <- as.numeric(time(stl_obj$time.series[, 1])) #extracting time index 
+  t <- as.numeric(time(stl_obj$time.series[, 1])) #extracting time index
   data.frame(
     t = t,
     observed = as.numeric(y),
@@ -119,8 +124,15 @@ panel <- function(df, main_title) {
   p_trend <- ggplot(df, aes(t, trend)) + geom_line(size = 0.3) +
     labs(title = "Trend", x = NULL, y = NULL) + base_theme
 
-  p_seasonal <- ggplot(df, aes(t, seasonal)) + geom_line(size = 0.3) +
+  seasonal_seq <- seq(from = 1, to = const_seasonality)
+
+  p_seasonal <- df %>%
+    slice_head(n = const_seasonality) %>%
+    mutate(t = seasonal_seq) %>%
+    ggplot(aes(t, seasonal)) + geom_line(size = 0.3) +
+    scale_x_continuous(breaks = seasonal_seq) +
     labs(title = "Seasonal", x = NULL, y = NULL) + base_theme
+
 
   p_residual <- ggplot(df, aes(t, residual)) + geom_line(size = 0.3) +
     labs(title = "Residual", x = NULL, y = NULL) + base_theme
@@ -150,7 +162,7 @@ train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
 
 # needs changing
-par(mar = c(4,4,2,1))  
+par(mar = c(4,4,2,1))
 
 plot(train,
      main = "Deseasonalized Northern Hemisphere temperature anomalies (1950–2010)",
@@ -173,13 +185,13 @@ abline(h = 0, lty = 2, col = "red")
 fit_holtwinters <- HoltWinters(train, gamma = FALSE)
 
 # Extract parameters correctly
-alpha_holtwinters <- fit_holtwinters$alpha  
-beta_holtwinters  <- fit_holtwinters$beta   
+alpha_holtwinters <- fit_holtwinters$alpha
+beta_holtwinters  <- fit_holtwinters$beta
 
 alpha_holtwinters
 beta_holtwinters
 
-# One-step-ahead fitted values vs observed 
+# One-step-ahead fitted values vs observed
 par(mar = c(4, 4, 2, 1))
 
 plot(train,

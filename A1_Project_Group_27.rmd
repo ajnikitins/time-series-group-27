@@ -171,5 +171,42 @@ legend("topleft",
        cex    = 0.8,
        bty    = "n")
 
+
+
+```
+
+```{r}
+## --- Holt-Winters with trend (beta = TRUE, gamma = FALSE) ---
+fit_holt2 <- HoltWinters(train, beta = TRUE, gamma = FALSE)
+
+# Extract parameters correctly
+alpha_holt2 <- fit_holt2$alpha   # numeric estimated alpha
+beta_holt2  <- fit_holt2$beta    # numeric estimated beta — this is the fix!
+
+alpha_holt2
+beta_holt2
+
+## --- One-step-ahead fitted values vs observed ---
+par(mar = c(4, 4, 2, 1))
+
+plot(train,
+     main    = "Holt-Winters one-step-ahead forecasts vs observed (1950–2010)",
+     xlab    = "Year",
+     ylab    = "Temperature anomaly (°C)",
+     col     = "black",
+     lwd     = 1,
+     cex.main = 1,
+     cex.lab  = 0.9,
+     cex.axis = 0.8)
+
+lines(fitted(fit_holt2)[, "xhat"], col = "red", lwd = 1.2)
+
+legend("topleft",
+       legend = c("Observed", "One-step-ahead forecast"),
+       col    = c("black", "red"),
+       lwd    = c(1, 1.2),
+       cex    = 0.8,
+       bty    = "n")
+
 ```
 

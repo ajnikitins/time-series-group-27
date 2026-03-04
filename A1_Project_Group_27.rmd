@@ -88,6 +88,7 @@ if (min(gistemp_ts, na.rm = TRUE) <= 0) {
   shift <- abs(min(gistemp_ts, na.rm = TRUE)) + 0.01
 }
 gistemp_pos <- gistemp_ts + shift
+```
 
 
 ```{r task1_decompo, fig.height=3, fig.width=5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:decomp}Comparison of time-series decompositions of Northern Hemisphere temperature anomalies."}
@@ -102,7 +103,6 @@ const_seasonality <- frequency(gistemp_ts)
 df_decomp <- function(dec_obj) {
   data.frame(
     t = as.numeric(time(dec_obj$x)),
-    month = as.integer(cycle(dec_obj$x)), #monthly index to aggregate seasonal effects for better visualization
     observed = as.numeric(dec_obj$x),
     trend = as.numeric(dec_obj$trend),
     seasonal = as.numeric(dec_obj$seasonal),
@@ -113,8 +113,7 @@ df_decomp <- function(dec_obj) {
 df_stl <- function(stl_obj, y) {
   t <- as.numeric(time(stl_obj$time.series[, 1]))
   data.frame(
-    t = as.numeric(time(stl_obj$time.series[, 1])),
-    month = as.integer(cycle(y)), #monthly index as in df_decomp
+    t = t,
     observed = as.numeric(y),
     trend = as.numeric(stl_obj$time.series[, "trend"]),
     seasonal = as.numeric(stl_obj$time.series[, "seasonal"]),
@@ -314,6 +313,7 @@ mae_table <- data.frame(
 
 #knitr::kable(mae_table, digits = 7, align = c("r", "r"),
 #             caption = "MAE at increasing forecast horizons")
+
 ```
 
 Figure$~$\ref{fig:hw_pred} includes the required plot.

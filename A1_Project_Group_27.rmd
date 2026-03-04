@@ -192,7 +192,7 @@ The validity of our choice to impose an additive structure is further confirmed 
 
 ### SES or Holt-Winters
 
-```{r, fig.height = 3, fig.width = 6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
+```{r, fig.height = 3, fig.width = 6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forecasts."}
 seasonal_component <- stl_fit$time.series[, "seasonal"]
 deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
@@ -238,7 +238,7 @@ $$
 
 We have let the model itself compute values for the smoothing parameters. Given a particular value of $\alpha$, $\beta$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This is then repeated for different values of $\alpha$, converging to a value that minimizes the sum of squared errors.
 
-Our analysis leads us to use $\alpha = .44$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother. Also, we use $\beta = 0.0016$, which effectivelly implies a fixed trend component.
+Our analysis leads us to use $\alpha = .44$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother. Also, we use $\beta = 0.0016$, which effectively implies a fixed trend component.
 
 ### Forecasting the series
 

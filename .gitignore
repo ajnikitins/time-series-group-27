@@ -58,3 +58,5 @@ rsconnect/
 *.html
 *.aux
 *.tex
+*.csv
+.DS_Store

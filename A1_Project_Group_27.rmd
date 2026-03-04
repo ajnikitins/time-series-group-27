@@ -251,11 +251,6 @@ legend("topleft",
        lwd    = c(1, 1.2),
        cex    = 0.8,
        bty    = "n")
-
-
-
-<<<<<<< HEAD
-=======
 ```
 
 ```{r}

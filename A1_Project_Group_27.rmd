@@ -20,6 +20,7 @@ plot_ts_gg <- function(
     x,
     title = NULL,
     ylab = NULL,
+    aes = NULL,
     facet_ncol = 1,
     wrap_width = 45
 ) {
@@ -32,10 +33,10 @@ plot_ts_gg <- function(
     Value = as.numeric(x)
   )
 
-  p <- ggplot(df, aes(Time, Value)) +
+  p <- ggplot(df, aes(Time, Value, !!!aes)) +
     geom_line() +
     labs(title = title, x = NULL, y = ylab)+
-    theme_minimal()
+    theme_minimal(base_size = 10)
 
   p
 }
@@ -43,7 +44,7 @@ plot_ts_gg <- function(
 
 ### Exploratory Analysis
 
-```{r, fig.height=4, fig.width=6}
+```{r, fig.height=3, fig.width=6}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
 #head(df)
 monthly_matrix <- as.matrix(df[, 2:13])
@@ -110,6 +111,17 @@ df_stl <- function(stl_obj, y) {
   )
 }
 
+df_hw <- function(hw_obj, y, pad = 2) {
+  t <- as.numeric(time(y)) #extracting time index
+  tibble(
+    t = t,
+    observed = as.numeric(y),
+    fitted = c(rep(NA, 2), as.numeric(fitted(hw_obj)[, "xhat"])),
+    trend = c(rep(NA, 2), as.numeric(fitted(hw_obj)[, "level"]) + as.numeric(fitted(hw_obj)[, "trend"])),
+    residual = observed - fitted
+  )
+}
+
 #formatting as a panel using subplots
 panel <- function(df, main_title) {
   base_theme <- theme_minimal(base_size = 10) +
@@ -155,34 +167,20 @@ grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic 
 
 ### Task 2
 
-```{r}
+```{r, fig.width = 5, fig.height = 4, fig.show = "hold", out.width = "49%"}
 seasonal_component <- stl_fit$time.series[, "seasonal"]
 deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
 
-# needs changing
-par(mar = c(4,4,2,1))
+plot_ts_gg(train,
+  title = "Deseasonalized Northern Hemisphere temperature\nanomalies (1950–2010)",
+  ylab = "Temperature anomaly (°C)",
+) +
+  geom_hline(yintercept = 0)
 
-plot(train,
-     main = "Deseasonalized Northern Hemisphere temperature anomalies (1950–2010)",
-     xlab = "Year",
-     ylab = "Temperature anomaly (°C)",
-     col = "black",
-     lwd = 1,
-     cex.main = 1,
-     cex.lab = 0.9,
-     cex.axis = 0.8)
-
-abline(h = 0, lty = 2, col = "red")
-
-```
-
-
-
-```{r}
 ## Holt-Winters with trend (gamma = FALSE)
-fit_holtwinters <- HoltWinters(train, gamma = FALSE)
+fit_holtwinters <- HoltWinters(train, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
 
 # Extract parameters correctly
 alpha_holtwinters <- fit_holtwinters$alpha
@@ -191,37 +189,24 @@ beta_holtwinters  <- fit_holtwinters$beta
 alpha_holtwinters
 beta_holtwinters
 
-# One-step-ahead fitted values vs observed
-par(mar = c(4, 4, 2, 1))
-
-plot(train,
-     main    = "Holt-Winters one-step-ahead forecasts vs observed (1950–2010)",
-     xlab    = "Year",
-     ylab    = "Temperature anomaly (°C)",
-     col     = "black",
-     lwd     = 1,
-     cex.main = 1,
-     cex.lab  = 0.9,
-     cex.axis = 0.8)
-
-lines(fitted(fit_holtwinters)[, "xhat"], col = "red", lwd = 1.2)
-
-legend("topleft",
-       legend = c("Observed", "One-step-ahead forecast"),
-       col    = c("black", "red"),
-       lwd    = c(1, 1.2),
-       cex    = 0.8,
-       bty    = "n")
-
+plot_ts_gg(train,
+  title = "Deseasonalized Northern Hemisphere temperature\nanomalies (1950–2010)",
+  ylab = "Temperature anomaly (°C)",
+  aes = list(color = "Observed"),
+) +
+  geom_hline(yintercept = 0) +
+  geom_line(data = df_hw(fit_holtwinters, train), aes(x = t, y = fitted, color = "One-step-ahead forecast")) +
+  scale_color_manual(values = c("black", "red")) +
+  theme(legend.position = "inside", legend.position.inside = c(0.2, 0.9))
 ```
 
 
 
 
 
-```{r}
+```{r, fig.width = 6, fig.height = 4}
 ## --- 15-year forecast from end of 2010 ---
-fit_holtwinters_forecast <- forecast(HoltWinters(train, gamma = FALSE), h = 15 * 12)
+fit_holtwinters_forecast <- forecast(fit_holtwinters, h = 15 * 12)
 
 fc_df <- data.frame(
   time = as.numeric(time(fit_holtwinters_forecast$mean)),
@@ -243,7 +228,7 @@ ggplot() +
   geom_line(data = train_df, aes(x = time, y = value), colour = "black", linewidth = 0.5) +
   geom_line(data = fc_df, aes(x = time, y = mean), colour = "steelblue", linewidth = 0.8) +
   labs(
-    title = "15-year Holt forecast of deseasonalized temperature anomalies (2011–2025)",
+    title = "15Y HW forecast of deseasonalized temperature anomalies (2011–2025)",
     x     = "Year",
     y     = "Temperature anomaly (°C)"
   ) +
@@ -262,7 +247,7 @@ mae_results <- sapply(horizons, function(yr) {
 
 mae_table <- data.frame(
   horizon_years = horizons,
-  MAE_holtwinters      = mae_results
+  MAE_holtwinters = mae_results
 )
 
 knitr::kable(mae_table, digits = 7, align = c("r", "r"),

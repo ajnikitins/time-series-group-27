@@ -175,7 +175,7 @@ We can initially note that classical additive decomposition and STL decompositio
 
 Figure$~$\ref{fig:decomp} clearly indicates a long-term, upward trend that is nevertheless characterized by multiple, successive phases. Most notably, we can identify an acceleration phase which occurred between 1920 and 1940, a slowdown between 1940 and 1970, and a particularly persistent, strong acceleration that started in the 1960's-1980's and continues to the present day. While the overall temperature level has been steadily increasing due to the ternd component, seasonality is characterized by small amplitude and a stable magnitude, which does not appear to scale with the temperature level. For this reason, we have considered it appropriate to specify a periodic window width in our STL decomposition; had we determined otherwise, specifying a numerical value to this setting would have allowed the seasonal pattern to slowly evolve over time.
 
-The validity of our choice to impose an additive structure is further confirmed by an analysis of the residuals $$\epsilon_t$$, which appear to be devoid of any structure, centered at zero and with constant variance. In particular, the residuals contain several extreme deviations (i.e. outliers), but these appear isolated rather than systematic, such that they can be safely regarded as noise.
+The validity of our choice to impose an additive structure is further confirmed by an analysis of the residuals $\epsilon_t$, which appear to be devoid of any structure, centered at zero and with constant variance. In particular, the residuals contain several extreme deviations (i.e. outliers), but these appear isolated rather than systematic, such that they can be safely regarded as noise.
 
 ## Task 2
 
@@ -189,13 +189,13 @@ deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
 ## HW with trend (gamma = FALSE)
-fit_holtwinters <- HoltWinters(train, beta = TRUE, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
+fit_holtwinters <- HoltWinters(train, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
 
 # Parameters extraction
 alpha_holtwinters <- fit_holtwinters$alpha
 beta_holtwinters  <- fit_holtwinters$beta
 
-alpha_holtwinters
+#alpha_holtwinters
 #beta_holtwinters
 
 plot_ts_gg(train,
@@ -228,9 +228,9 @@ $$
 \hat{Y}_t (h) = (L_t + h T_t)
 $$
 
-We have let the model itself compute values for the smoothing parameters. Given a particular value of $$\alpha$$, $$\beta$$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This can be repeated for different values of$$\alpha$$ according to a grid search or some other hyper-parameter tuning method, so that the value which minimizes the sum of squares is eventually found.
+We have let the model itself compute values for the smoothing parameters. Given a particular value of $\alpha$, $\beta$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This can be repeated for different values of $\alpha$ according to a grid search or some other hyper-parameter tuning method, so that the value which minimizes the sum of squares is eventually found.
 
-Our analysis leads us to use $$\alpha = .44$$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother.
+Our analysis leads us to use $\alpha = .44$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother.
 
 ### Forecasting the series
 
@@ -259,11 +259,15 @@ ggplot() +
   geom_line(data = train_df, aes(x = time, y = value), colour = "black", linewidth = 0.5) +
   geom_line(data = fc_df, aes(x = time, y = mean), colour = "steelblue", linewidth = 0.8) +
   labs(
-    x     = "Year",
-    y     = "Temperature anomaly (°C)"
+    title = "Deseasonalized temperature anomaly (°C)",
+    x = NULL,
+    y = NULL
   ) +
   geom_hline(yintercept = 0)
 ```
+
+
+
 ```{r}
 # MAE at horizons: 1, 5, 10, 15 years
 actual <- window(deseasonalized, start = c(2011, 1), end = c(2025, 12))
@@ -285,8 +289,7 @@ mae_table <- data.frame(
 
 ```
 
-Briefly discuss your results. Do you envisage any pattern?
-
+Figure$~$\ref{fig:hw_pred} includes the required plot.
 
 As expected and reasonable, the mean absolute error increases with h (the horizon): it is equal to $0.22$ for a one-year horizon; $1.34$ for a 5-year horizon; $2.77$ for a 10-year horizon, and $4.17$ for a 15-year horizon.
 

@@ -8,7 +8,17 @@ output:
     extra_dependencies: ["float"]
 fontsize: 10pt
 geometry: margin=2cm
+header-includes:
+  - \setlength{\textfloatsep}{6pt}
+  - \setlength{\intextsep}{6pt}
 ---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(forecast)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
 
 ```{r setup, include=FALSE}
 rm(list = ls())
@@ -177,11 +187,28 @@ Figure$~$\ref{fig:decomp} clearly indicates a long-term, upward trend that is ne
 
 The validity of our choice to impose an additive structure is further confirmed by an analysis of the residuals $\epsilon_t$, which appear to be devoid of any structure, centered at zero and with constant variance. In particular, the residuals contain several extreme deviations (i.e. outliers), but these appear isolated rather than systematic, such that they can be safely regarded as noise.
 
+### Anna-Bella's text
+
+The trend component clearly reveals a long-term warming pattern in the GISTEMP data. After relatively moderate fluctuations in the late 19th and early 20th centuries, temperatures begin to increase gradually. A temporary stabilization is visible around the mid-20th century, with a relatively flatter slope between 1940 and 1970 suggesting a slowdown in warming. However, from the late 1970s onward, the trend exhibits a much steeper slope, indicating a strong and persistent acceleration in warming.
+The additive and multiplicative decompositions produce nearly identical trend components, indicating that the estimated long-term dynamics are robust to the choice of model.
+
+Because the series is monthly and spans more than a century, the seasonal component plotted over the full sample is visually dense and hard to interpret. For readability, we therefore zoom in on a recent subperiod (from 2000 onward), which preserves the seasonal structure while avoiding overplotting.
+
+The zoomed figures confirm that the seasonal pattern remains highly stable over time. We don not observe significant change in amplitude over the recent period, suggesting that seasonality is approximately constant. As, in the multiplicative decompositon, the seasonal component is expressed as a multiplicative factor, the plot is centered around 1, whereas in the additive (and STL) decomposition it is centered around 0.
+
+To better understand the intra-annual structure of the seasonal component, we now examine the average seasonal profile by month. Aggregating across years provides a more interpretable representation of the annual cycle of the series.
+
+The zoomed figures confirm that the seasonal pattern remains highly stable over time. We don not observe significant change in amplitude over the recent period, suggesting that seasonality is approximately constant. As, in the multiplicative decompositon, the seasonal component is expressed as a multiplicative factor, the plot is centered around 1, whereas in the additive (and STL) decomposition it is centered around 0.
+
+To better understand the intra-annual structure of the seasonal component, we now examine the average seasonal profile by month. Aggregating across years provides a more interpretable representation of the annual cycle of the series.
+
+The aggregated monthly profiles confirm a clear and regular annual seasonal cycle. For instance, late summer months such as August tend to exhibit negative seasonal effects, whereas autumn months such as October often contribute positively to the seasonal component. This produces a stable intra-annual structure that is remarkably consistent across additive, multiplicative, and STL decompositions. Although stl() allows for time-varying seasonality through LOESS smoothing, the close similarity of the results suggests that seasonality remains approximately constant over time, making the classical constant-seasonality assumption appropriate for the GISTEMP data.
+
+The residuals fluctuate around zero without displaying persistent patterns, which supports the adequacy of the decomposition. While occasional extreme spikes are visible, they remain isolated and do not suggest structural misspecification. Overall, the unexplained variation appears mostly irregular rather than systematic, and no strong evidence of remaining seasonality or trend is detected in the residuals.
+
 ## Task 2
 
 ### SES or Holt-Winters
-
-fig.height=3, fig.width=5, fig.show = "hold", out.width = "50%"}
 
 ```{r, fig.height = 3, fig.width = 5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
 seasonal_component <- stl_fit$time.series[, "seasonal"]
@@ -210,7 +237,7 @@ plot_ts_gg(train,
 ```
 In general, exponential smoothing is a class of forecasting procedures that rely on simple, recursive updating equations to compute forecasts. In particular, Simple ES is used for non-seasonal or deseasonalized time series that show no systematic trend. The updating equation is such that, given N observations, the next prediction is a weighted average of the last observation and forecast. Alpha is a smoothing parameter that controls the procedure's adaptiveness: the closer to 1 it is, the higher the weight is given to each observation in forecasting the next. Formally:
 $$
-\hat{Y}_{N+1} = \alpha Y_N +(1 - \alpha) \hat{Y}_{N} 
+\hat{Y}_{N+1} = \alpha Y_N +(1 - \alpha) \hat{Y}_{N}
 $$
 
 After deseasonalizing the time series, we have decided to perform the Holt-Winters forecasting procedure, instead of simple ES, in order to handle the very prominent trend component. The procedure thus produces different estimates:
@@ -224,7 +251,7 @@ $$
 T_t = \beta \left (L_t - L_{t-1} \right) + (1 - \beta) T_{t-1}
 $$
 $$
-\textbf{h-step-ahead forecast at time t} \quad \quad 
+\textbf{h-step-ahead forecast at time t} \quad \quad
 \hat{Y}_t (h) = (L_t + h T_t)
 $$
 
@@ -292,10 +319,3 @@ mae_table <- data.frame(
 Figure$~$\ref{fig:hw_pred} includes the required plot.
 
 As expected and reasonable, the mean absolute error increases with h (the horizon): it is equal to $0.22$ for a one-year horizon; $1.34$ for a 5-year horizon; $2.77$ for a 10-year horizon, and $4.17$ for a 15-year horizon.
-
-
-
-
-
-
-

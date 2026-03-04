@@ -1,6 +1,6 @@
 ---
 title: "Bocconi University - 20236 Time Series Analysis"
-subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins, Madelief Van Weerdenburg**"
+subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins, Madelief van Weerdenburg**"
 output:
   pdf_document:
     latex_engine: xelatex
@@ -53,7 +53,7 @@ plot_ts_gg <- function(
 
 # Exploratory Analysis
 
-```{r, fig.height=2, fig.width=4, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
+```{r, fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
 #head(df)
 monthly_matrix <- as.matrix(df[, 2:13])
@@ -73,7 +73,7 @@ plot_ts_gg(
 
 The time series presented in Figure$~$\ref{fig:main} shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
 
-The marginal variances appear relatively stable, as the dispersion does not increase with the level of the series. There is no strong visual evidence of heteroskedasticity. The variance can therefore be considered approximately constant over time. This observation supports the use of an additive decomposition rather than a multiplicative one.
+The marginal variances appear relatively stable, as the dispersion does not increase with the level of the series. There is no strong visual evidence of heteroskedasticity. The variance can therefore be considered approximately constant over time. This observation supports the use of an additive decomposition instead of a multiplicative one.
 
 ## Task 1
 
@@ -86,7 +86,7 @@ if (min(gistemp_ts, na.rm = TRUE) <= 0) {
 gistemp_pos <- gistemp_ts + shift
 ```
 
-```{r task1_decompo, fig.height=3, fig.width=4, fig.show = "hold", out.width = "28%", fig.cap = "\\label{fig:decomp}Comparison of time-series decompositions of Northern Hemisphere temperature anomalies."}
+```{r task1_decompo, fig.height=4, fig.width=4, fig.show = "hold", out.width = "32%", fig.cap = "\\label{fig:decomp}Comparison of time-series decompositions of Northern Hemisphere temperature anomalies. For the multiplicative decomposition, the time series is shifted upwards by its most negative value."}
 dec_add  <- decompose(gistemp_ts,  type = "additive")
 dec_mult <- decompose(gistemp_pos, type = "multiplicative")
 stl_fit  <- stl(gistemp_ts, s.window = "periodic")
@@ -167,7 +167,7 @@ grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic 
 
 ```
 
-Given $m_t$ is the deseasonalized mean level at time t and $S_t$ the seasonal effect at time t, additive and multiplicative decomposition implies one of the following models, respectively:
+Given $m_t$, the deseasonalized mean level at time t, and $S_t$, the seasonal effect at time t, additive and multiplicative decompositions imply the following models, respectively:
 
 $$
 Y_t = m_t + S_t + \epsilon_t
@@ -176,7 +176,7 @@ $$
 Y_t = m_t S_t \epsilon_t
 $$
 
-We can initially note that STL decomposition, which presupposes an additive structure, produces visually similar results to those of classical additive decomposition. As first evidenced by the exploratory analysis of the time series, the apparent lack of heteroskedasticity makes additive decomposition preferable. In particular, it induces the residuals' variance to be higher when the trend is lower, and vice-versa. Therefore, we can safely determine that using an additive decomposition is more consistent with the variance structure of the original data, and thus the best choice.
+In Figure$~$\ref{fig:decomp}, we can initially note that STL decomposition, which presupposes an additive structure, produces visually similar results to those of classical additive decomposition. As first evidenced by the exploratory analysis of the time series, the apparent lack of heteroskedasticity makes additive decomposition preferable. In particular, multiplicative decomposition induces the residuals' variance to be higher when the trend is lower, and vice-versa. Therefore, using an additive decomposition is more consistent with the variance structure of the original data, and thus the better choice.
 
 Figure$~$\ref{fig:decomp} clearly indicates a long-term warming pattern in the GISTEMP data. After relatively moderate fluctuations in the late 19th and early 20th centuries, temperatures begin to increase gradually. A temporary stabilization is visible around the mid-20th century, with a relatively flatter slope between 1940 and 1970 suggesting a slowdown in warming. However, from the late 1970s onward, the trend exhibits a much steeper slope, indicating a strong and persistent acceleration in warming.
 
@@ -184,9 +184,7 @@ As, in the multiplicative decomposition, the seasonal component is expressed as 
 
 While the overall temperature level has been steadily increasing due to the trend component, seasonality is characterized by small amplitude and stable magnitude, which does not appear to scale with the temperature level. For this reason, we have considered it appropriate to specify a periodic window width in our STL decomposition; had we determined otherwise, specifying a numerical value to this setting would have allowed the seasonal pattern to slowly evolve over time.
 
-To better understand the intra-annual structure of the seasonal component, we now examine the average seasonal profile by month. Aggregating across years provides a more interpretable representation of the annual cycle of the series.
-
-The aggregated monthly profiles confirm a clear and regular annual seasonal cycle. For instance, late summer months such as August tend to exhibit negative seasonal effects, whereas autumn months such as October often contribute positively to the seasonal component. This produces a stable intra-annual structure that is remarkably consistent across additive, multiplicative, and STL decompositions. Although stl() allows for time-varying seasonality through LOESS smoothing, the close similarity of the results suggests that seasonality remains approximately constant over time, making the classical constant-seasonality assumption appropriate for the GISTEMP data.
+To better understand the intra-annual structure of the seasonal component, we now examine the annual seasonal profile by month. The monthly profiles confirm a clear seasonal cycle. For instance, late summer months such as August tend to exhibit negative seasonal effects, whereas autumn months such as October often contribute positively to the seasonal component.
 
 The validity of our choice to impose an additive structure is further confirmed by an analysis of the residuals $\epsilon_t$, which appear to be devoid of any structure, centered at zero and with constant variance. While occasional extreme spikes are visible, they remain isolated and do not suggest structural misspecification.
 
@@ -194,7 +192,7 @@ The validity of our choice to impose an additive structure is further confirmed 
 
 ### SES or Holt-Winters
 
-```{r, fig.height = 2, fig.width = 4, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
+```{r, fig.height = 3, fig.width = 6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
 seasonal_component <- stl_fit$time.series[, "seasonal"]
 deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
@@ -219,12 +217,12 @@ plot_ts_gg(train,
   theme(legend.position = "inside", legend.position.inside = c(0.3, 0.9)) +
   labs(color = NULL)
 ```
-In general, exponential smoothing is a class of forecasting procedures that rely on simple, recursive updating equations to compute forecasts. In particular, Simple ES is used for non-seasonal or deseasonalized time series that show no systematic trend. The updating equation is such that, given N observations, the next prediction is a weighted average of the last observation and forecast. Alpha is a smoothing parameter that controls the procedure's adaptiveness: the closer to 1 it is, the higher the weight is given to each observation in forecasting the next. Formally:
+In general, exponential smoothing is a class of forecasting procedures that rely on simple, recursive updating equations to compute forecasts. In particular, Simple ES is used for non-seasonal or deseasonalized time series that show no systematic trend. The updating equation is such that, given the N-th observation, the next prediction is a weighted average of the current observation and its forecast. Alpha is a smoothing parameter that controls the procedure's adaptiveness: the closer to 1 it is, the higher the weight is given to each observation in forecasting the next. Formally:
 $$
 \hat{Y}_{N+1} = \alpha Y_N +(1 - \alpha) \hat{Y}_{N}
 $$
 
-After deseasonalizing the time series, we have decided to perform the Holt-Winters forecasting procedure, instead of simple ES, in order to handle the very prominent trend component. The procedure thus produces different estimates:
+After deseasonalizing the time series, we have decided to perform the Holt-Winters forecasting procedure, instead of simple ES, in order to handle the very prominent trend component. The procedure thus produces estimates as a linear function of the estimation horizon:
 $$
 \textbf{Level update} \quad \quad
 L_t = \alpha Y_t + (1 - \alpha) \left(L_{t-1} + T_{t-1} \right)
@@ -245,7 +243,9 @@ Our analysis leads us to use $\alpha = .44$, which means that each observation h
 
 ### Forecasting the series
 
-```{r, fig.height = 2, fig.width = 4, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized series (2011–2025) with 80% and 95% confidence bands."}
+```{r, fig.height = 3, fig.width = 6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized series (2011–2025) with 80% and 95% confidence bands."}
+
+actual <- window(deseasonalized, start = c(2011, 1), end = c(2025, 12))
 
 # 15-year forecast from end of 2010
 fit_holtwinters_forecast <- forecast(fit_holtwinters, h = 15 * 12)
@@ -264,24 +264,36 @@ train_df <- data.frame(
   value = as.numeric(train)
 )
 
+actual_df <- data.frame(
+  time = as.numeric(time(actual)),
+  value = as.numeric(actual)
+)
+
 ggplot() +
   geom_line(data = train_df, aes(x = time, y = value, color = "Observed"), linewidth = 0.5) +
-  geom_line(data = df_hw(fit_holtwinters, train), aes(x = t, y = fitted, color = "One-step-ahead forecast")) +
+  # geom_line(data = df_hw(fit_holtwinters, train), aes(x = t, y = fitted, color = "One-step-ahead forecast")) +
   scale_color_manual(
     values = c(
       "Observed" = "black",
-      "One-step-ahead forecast" = "steelblue"
+      "Forecast" = "red"
       )
     ) +
-  theme(legend.position = "inside", legend.position.inside = c(0.3, 0.9)) +
+  scale_alpha_manual(
+    values = c(
+      "95% CI" = 0.2,
+      "80% CI" = 0.3
+    )
+  ) +
+  theme(legend.position = "inside", legend.position.inside = c(0.1, 0.8)) +
   labs(color = NULL) +
-  geom_ribbon(data = fc_df, aes(x = time, ymin = lo95, ymax = hi95), fill = "steelblue", alpha = 0.2) +
-  geom_ribbon(data = fc_df, aes(x = time, ymin = lo80, ymax = hi80), fill = "steelblue", alpha = 0.3) +
-  geom_line(data = fc_df, aes(x = time, y = mean), colour = "steelblue", linewidth = 0.8) +
+  geom_line(data = actual_df, aes(x = time, y = value), colour = "black", linewidth = 0.8) +
+  geom_ribbon(data = fc_df, aes(x = time, ymin = lo95, ymax = hi95, alpha = "95% CI"), fill = "steelblue") +
+  geom_ribbon(data = fc_df, aes(x = time, ymin = lo80, ymax = hi80, alpha = "80% CI"), fill = "steelblue") +
+  geom_line(data = fc_df, aes(x = time, y = mean, colour = "Forecast"), linewidth = 0.8) +
   labs(
     title = NULL,
-    x = "Year",
-    y = "Deseasonalized temperature anomaly (°C)"
+    x = NULL,
+    y = "Temperature anomalies (°C)"
   ) +
   geom_hline(yintercept = 0)
 
@@ -289,7 +301,6 @@ ggplot() +
 
 ```{r}
 # MAE at horizons: 1, 5, 10, 15 years
-actual <- window(deseasonalized, start = c(2011, 1), end = c(2025, 12))
 forecasts <- fit_holtwinters_forecast$mean  # point forecasts from holt
 
 horizons <- c(1, 5, 10, 15)
@@ -303,11 +314,16 @@ mae_table <- data.frame(
   MAE = mae_results
 )
 
-kable(mae_table, digits = 7, align = c("r", "r"),
-             caption = "MAE at increasing forecast horizons")
+mape_results <- sapply(horizons, function(yr) {
+  h <- yr * 12
+  mean(abs(forecasts[1:h] - actual[1:h])) / mean(actual[1:h])
+})
+
+# kable(mae_table, digits = 7, align = c("r", "r"),
+            #  caption = "MAE at increasing forecast horizons")
 
 ```
 
 Figure$~$\ref{fig:hw_pred} includes the required plot.
 
-As expected and reasonable, the mean absolute error increases with the horizon, h.
+As expected and reasonable, the mean absolute error increases with the horizon, h: it is equal to $0.10$ centigrade for a one-year horizon; $0.14$ for a 5-year horizon; $0.16$ for a 10-year horizon, and $0.18$ for a 15-year horizon.

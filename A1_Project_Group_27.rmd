@@ -161,18 +161,14 @@ grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic 
 
 ```
 
-Given $$m_t$$ is the deseasonalized mean level at time t and $$S_t$$ the seasonal effect at time t, additive and multiplicative decomposition implies one of the following models, respectively:
+Given $m_t$ is the deseasonalized mean level at time t and $S_t$ the seasonal effect at time t, additive and multiplicative decomposition implies one of the following models, respectively:
 
-\begin{equation}
-\begin{aligned}
+$$
 Y_t = m_t + S_t + \epsilon_t
-\end{aligned}
-\end{equation}
-\begin{equation}
-\begin{aligned}
+$$
+$$
 Y_t = m_t S_t \epsilon_t
-\end{aligned}
-\end{equation}
+$$
 
 We can initially note that classical additive decomposition and STL decomposition, which presupposes an additive structure, produce visually similar results. As first evidenced by the exploratory analysis of the time series, the apparent lack of heteroskedasticity makes additive decomposition preferable. In particular, since multiplicative decomposition computes residuals as a ratio, it induces their variance to be higher when the trend is lower, and vice-versa. Therefore, we can safely determine that using an additive decomposition is more consistent with the variance structure of the original data, and thus the best choice.
 
@@ -212,24 +208,25 @@ plot_ts_gg(train,
   theme(legend.position = "inside", legend.position.inside = c(0.2, 0.9)) +
   labs(color = NULL)
 ```
-In general, exponential smoothing is a class of forecasting procedures that rely on simple, recursive updating equations to compute estimates. In particular, Simple ES is used for non-seasonal or deseasonalized time series that show no systematic trend. The updating equation is such that, given N observations, the next prediction is a weighted average of the last observation and forecast. Alpha is a smoothing parameter that controls the procedure's adaptiveness: the closer to 1 it is, the higher the weight is given to each observation in forecasting the next. Formally:
-\begin{equation}
-\begin{aligned}
+In general, exponential smoothing is a class of forecasting procedures that rely on simple, recursive updating equations to compute forecasts. In particular, Simple ES is used for non-seasonal or deseasonalized time series that show no systematic trend. The updating equation is such that, given N observations, the next prediction is a weighted average of the last observation and forecast. Alpha is a smoothing parameter that controls the procedure's adaptiveness: the closer to 1 it is, the higher the weight is given to each observation in forecasting the next. Formally:
+$$
 \hat{Y}_{N+1} = \alpha Y_N +(1 - \alpha) \hat{Y}_{N} 
-\end{aligned}
-\end{equation}
+$$
 
 After deseasonalizing the time series, we have decided to perform the Holt-Winters forecasting procedure, instead of simple ES, in order to handle the very prominent trend component. The procedure thus produces different estimates:
-\begin{equation}
-\begin{aligned}
-\textbf{Level update}
+$$
+\textbf{Level update} \quad \quad
 L_t = \alpha Y_t + (1 - \alpha) \left(L_{t-1} + T_{t-1} \right)
-\textbf{Trend update}
+$$
+
+$$
+\textbf{Trend update} \quad \quad
 T_t = \beta \left (L_t - L_{t-1} \right) + (1 - \beta) T_{t-1}
-\textbf{h-step-ahead forecast at time t}
+$$
+$$
+\textbf{h-step-ahead forecast at time t} \quad \quad 
 \hat{Y}_t (h) = (L_t + h T_t)
-\end{aligned}
-\end{equation}
+$$
 
 We have let the model itself compute values for the smoothing parameters. Given a particular value of $$\alpha$$, $$\beta$$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This can be repeated for different values of$$\alpha$$ according to a grid search or some other hyper-parameter tuning method, so that the value which minimizes the sum of squares is eventually found.
 
@@ -237,7 +234,8 @@ Our analysis leads us to use $$\alpha = .44$$, which means that each observation
 
 ### Forecasting the series
 
-```{r, fig.height = 3, fig.width = 5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized temperature anomalies (2011–2025) with 80% and 95% confidence bands."}
+```{r, fig.height = 3, fig.width = 5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized series (2011–2025) with 80% and 95% confidence bands."}
+
 # 15-year forecast from end of 2010
 fit_holtwinters_forecast <- forecast(fit_holtwinters, h = 15 * 12)
 
@@ -282,15 +280,15 @@ mae_table <- data.frame(
   MAE_holtwinters = mae_results
 )
 
-knitr::kable(mae_table, digits = 7, align = c("r", "r"),
-             caption = "MAE at increasing forecast horizons")
+#knitr::kable(mae_table, digits = 7, align = c("r", "r"),
+#             caption = "MAE at increasing forecast horizons")
 
 ```
 
 Briefly discuss your results. Do you envisage any pattern?
 
 
-
+As expected and reasonable, the mean absolute error increases with h (the horizon): it is equal to $0.22$ for a one-year horizon; $1.34$ for a 5-year horizon; $2.77$ for a 10-year horizon, and $4.17$ for a 15-year horizon.
 
 
 

@@ -1,6 +1,6 @@
 ---
 title: "Bocconi University - 20236 Time Series Analysis"
-subtitle: "**Assignment 1 towards the final project | Group 27**"
+subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins, Madelief Van Weerdeburg**"
 output:
   pdf_document:
     latex_engine: xelatex
@@ -65,7 +65,7 @@ plot_ts_gg(
 
 ```
 
-The time series (Figure$~$\ref{fig:main}) shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
+The time series presented in Figure$~$\ref{fig:main} shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
 
 The marginal variances appear relatively stable, as the dispersion does not increase with the level of the series. There is no strong visual evidence of heteroskedasticity. The variance can therefore be considered approximately constant over time. This observation supports the use of an additive decomposition rather than a multiplicative one.
 
@@ -160,20 +160,26 @@ grid::grid.draw(panel(df_decomp(dec_mult), "Multiplicative decomposition (shifte
 grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic seasonality)"))
 
 ```
-bitte fügen Sie hier den kommentar ein
-Answer the following questions, supporting your answers with valid analysis when necessary
-(at your discretion).
-Trend Analysis:
-• What long-term trends are visible in the temperature data?
-• Are there periods of acceleration or deceleration in warming?
-Seasonality:
-• Can you interpret the seasonal pattern?
-Is the seasonality constant, or time–varying? Explain how different R functions tackle
-the problem; explore both constant and time-varying cases and pick the one you reckon
-is the most suitable for the data.
-Noise and Uncertainty:
-• Briefly comment on the variation that is unexplained by the decomposition. Are there
-anomalies in the residuals?
+
+Given $$m_t$$ is the deseasonalized mean level at time t and $$S_t$$ the seasonal effect at time t, additive and multiplicative decomposition implies one of the following models, respectively:
+
+\begin{equation}
+\begin{aligned}
+Y_t = m_t + S_t + \epsilon_t
+\end{aligned}
+\end{equation}
+\begin{equation}
+\begin{aligned}
+Y_t = m_t S_t \epsilon_t
+\end{aligned}
+\end{equation}
+
+We can initially note that classical additive decomposition and STL decomposition, which presupposes an additive structure, produce visually similar results. As first evidenced by the exploratory analysis of the time series, the apparent lack of heteroskedasticity makes additive decomposition preferable. In particular, since multiplicative decomposition computes residuals as a ratio, it induces their variance to be higher when the trend is lower, and vice-versa. Therefore, we can safely determine that using an additive decomposition is more consistent with the variance structure of the original data, and thus the best choice.
+
+
+Figure$~$\ref{fig:decomp} clearly indicates a long-term, upward trend that is nevertheless characterized by multiple, successive phases. Most notably, we can identify an acceleration phase which occurred between 1920 and 1940, a slowdown between 1940 and 1970, and a particularly persistent, strong acceleration that started in the 1960's-1980's and continues to the present day. While the overall temperature level has been steadily increasing due to the ternd component, seasonality is characterized by small amplitude and a stable magnitude, which does not appear to scale with the temperature level. For this reason, we have considered it appropriate to specify a periodic window width in our STL decomposition; had we determined otherwise, specifying a numerical value to this setting would have allowed the seasonal pattern to slowly evolve over time.
+
+The validity of our choice to impose an additive structure is further confirmed by an analysis of the residuals $$\epsilon_t$$, which appear to be devoid of any structure, centered at zero and with constant variance. In particular, the residuals contain several extreme deviations (i.e. outliers), but these appear isolated rather than systematic, such that they can be safely regarded as noise.
 
 ## Task 2
 
@@ -187,14 +193,14 @@ deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
 ## HW with trend (gamma = FALSE)
-fit_holtwinters <- HoltWinters(train, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
+fit_holtwinters <- HoltWinters(train, beta = TRUE, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
 
 # Parameters extraction
 alpha_holtwinters <- fit_holtwinters$alpha
 beta_holtwinters  <- fit_holtwinters$beta
 
 alpha_holtwinters
-beta_holtwinters
+#beta_holtwinters
 
 plot_ts_gg(train,
   ylab = "Temperature anomaly (°C)",
@@ -206,11 +212,28 @@ plot_ts_gg(train,
   theme(legend.position = "inside", legend.position.inside = c(0.2, 0.9)) +
   labs(color = NULL)
 ```
+In general, exponential smoothing is a class of forecasting procedures that rely on simple, recursive updating equations to compute estimates. In particular, Simple ES is used for non-seasonal or deseasonalized time series that show no systematic trend. The updating equation is such that, given N observations, the next prediction is a weighted average of the last observation and forecast. Alpha is a smoothing parameter that controls the procedure's adaptiveness: the closer to 1 it is, the higher the weight is given to each observation in forecasting the next. Formally:
+\begin{equation}
+\begin{aligned}
+\hat{Y}_{N+1} = \alpha Y_N +(1 - \alpha) \hat{Y}_{N} 
+\end{aligned}
+\end{equation}
 
-What value of α have you used? Report it and explain how it is determined. How
-would your forecasts change with a different choice of α?
+After deseasonalizing the time series, we have decided to perform the Holt-Winters forecasting procedure, instead of simple ES, in order to handle the very prominent trend component. The procedure thus produces different estimates:
+\begin{equation}
+\begin{aligned}
+\textbf{Level update}
+L_t = \alpha Y_t + (1 - \alpha) \left(L_{t-1} + T_{t-1} \right)
+\textbf{Trend update}
+T_t = \beta \left (L_t - L_{t-1} \right) + (1 - \beta) T_{t-1}
+\textbf{h-step-ahead forecast at time t}
+\hat{Y}_t (h) = (L_t + h T_t)
+\end{aligned}
+\end{equation}
 
+We have let the model itself compute values for the smoothing parameters. Given a particular value of $$\alpha$$, $$\beta$$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This can be repeated for different values of$$\alpha$$ according to a grid search or some other hyper-parameter tuning method, so that the value which minimizes the sum of squares is eventually found.
 
+Our analysis leads us to use $$\alpha = .44$$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother.
 
 ### Forecasting the series
 

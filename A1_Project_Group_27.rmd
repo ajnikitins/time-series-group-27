@@ -18,6 +18,9 @@ library(gridExtra)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
 
+set_theme(theme_classic())
+update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
+
 plot_ts_gg <- function(
     x,
     title = NULL,
@@ -37,16 +40,15 @@ plot_ts_gg <- function(
 
   p <- ggplot(df, aes(Time, Value, !!!aes)) +
     geom_line() +
-    labs(title = title, x = NULL, y = ylab)+
-    theme_minimal(base_size = 10)
+    labs(title = title, x = NULL, y = ylab)
 
   p
 }
 ```
 
-### Exploratory Analysis
+# Exploratory Analysis
 
-```{r, fig.height=3, fig.width=6, fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
+```{r, fig.height=3, fig.width=5, fig.height = 3, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
 #head(df)
 monthly_matrix <- as.matrix(df[, 2:13])
@@ -56,19 +58,21 @@ gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
 
 plot_ts_gg(
   gistemp_ts,
-  ylab = "Temperature anomalies (°C)"
+  title = "Temperature anomalies (°C)"
 ) +
   geom_hline(yintercept = 0)
+
+
 ```
 
 The time series (Figure$~$\ref{fig:main}) shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
 
 The marginal variances appear relatively stable, as the dispersion does not increase with the level of the series. There is no strong visual evidence of heteroskedasticity. The variance can therefore be considered approximately constant over time. This observation supports the use of an additive decomposition rather than a multiplicative one.
 
-### Task 1
+## Task 1
 
-```{r task1_decompo_prep, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
-#to ensure positive values when needed
+```{r task1_decompo_prep, message=FALSE, warning=FALSE}
+# Ensuring positive values, necessary for classical multiplicative decomposition
 shift <- 0
 if (min(gistemp_ts, na.rm = TRUE) <= 0) {
   shift <- abs(min(gistemp_ts, na.rm = TRUE)) + 0.01
@@ -77,7 +81,7 @@ gistemp_pos <- gistemp_ts + shift
 ```
 
 
-```{r task1_decompo, fig.width=10, fig.height=4, out.width = "100%", fig.cap = "\\label{fig:decomp}Comparison of time-series decompositions of Northern Hemisphere temperature anomalies.", fig.show = "hold"}
+```{r task1_decompo, fig.height=3, fig.width=5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:decomp}Comparison of time-series decompositions of Northern Hemisphere temperature anomalies."}
 dec_add  <- decompose(gistemp_ts,  type = "additive")
 dec_mult <- decompose(gistemp_pos, type = "multiplicative")
 stl_fit  <- stl(gistemp_ts, s.window = "periodic")
@@ -85,7 +89,7 @@ stl_fit  <- stl(gistemp_ts, s.window = "periodic")
 # Assuming same seasonality for all decompositions
 const_seasonality <- frequency(gistemp_ts)
 
-#conversion of the decompose() object for a cleaner output
+# Conversion of the decompose() object for a cleaner output
 df_decomp <- function(dec_obj) {
   data.frame(
     t = as.numeric(time(dec_obj$x)),
@@ -97,7 +101,7 @@ df_decomp <- function(dec_obj) {
 }
 
 df_stl <- function(stl_obj, y) {
-  t <- as.numeric(time(stl_obj$time.series[, 1])) #extracting time index
+  t <- as.numeric(time(stl_obj$time.series[, 1]))
   data.frame(
     t = t,
     observed = as.numeric(y),
@@ -108,7 +112,7 @@ df_stl <- function(stl_obj, y) {
 }
 
 df_hw <- function(hw_obj, y, pad = 2) {
-  t <- as.numeric(time(y)) #extracting time index
+  t <- as.numeric(time(y))
   tibble(
     t = t,
     observed = as.numeric(y),
@@ -118,19 +122,15 @@ df_hw <- function(hw_obj, y, pad = 2) {
   )
 }
 
-#formatting as a panel using subplots
-panel <- function(df, main_title) {
-  base_theme <- theme_minimal(base_size = 10) +
-    theme(
-      plot.title = element_text(face = "bold", size = 10),
-      panel.grid.minor = element_blank()
-    )
-
+# Formatting as a panel using subplots
+panel <- function(df, main_title, add_hline = TRUE) {
   p_observed <- ggplot(df, aes(t, observed)) + geom_line(size = 0.3) +
-    labs(title = "Observed", x = NULL, y = NULL) + base_theme
-
+    labs(title = "Observed", x = NULL, y = NULL)
+  if (add_hline) {
+    p_observed <- p_observed + geom_hline(yintercept = 0)
+  }
   p_trend <- ggplot(df, aes(t, trend)) + geom_line(size = 0.3) +
-    labs(title = "Trend", x = NULL, y = NULL) + base_theme
+    labs(title = "Trend", x = NULL, y = NULL)
 
   seasonal_seq <- seq(from = 1, to = const_seasonality)
 
@@ -139,13 +139,13 @@ panel <- function(df, main_title) {
     mutate(t = seasonal_seq) %>%
     ggplot(aes(t, seasonal)) + geom_line(size = 0.3) +
     scale_x_continuous(breaks = seasonal_seq) +
-    labs(title = "Seasonal", x = NULL, y = NULL) + base_theme
+    labs(title = "Seasonal", x = NULL, y = NULL)
 
 
   p_residual <- ggplot(df, aes(t, residual)) + geom_line(size = 0.3) +
-    labs(title = "Residual", x = NULL, y = NULL) + base_theme
+    labs(title = "Residual", x = NULL, y = NULL)
 
-  # Arrange in a 2x2 grid and RETURN it (important for knitting)
+  # Choosing ncol = 2
   gridExtra::grid.arrange(
     p_observed, p_trend,
     p_seasonal, p_residual,
@@ -154,29 +154,42 @@ panel <- function(df, main_title) {
   )
 }
 
-#using grid to display panels
+# Using grid to display panels
 grid::grid.draw(panel(df_decomp(dec_add),  "Additive decomposition (GISTEMP)"))
-grid::grid.draw(panel(df_decomp(dec_mult), "Multiplicative decomposition (shifted GISTEMP)"))
+grid::grid.draw(panel(df_decomp(dec_mult), "Multiplicative decomposition (shifted GISTEMP)", add_hline = FALSE))
 grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic seasonality)"))
+
 ```
+bitte fügen Sie hier den kommentar ein
+Answer the following questions, supporting your answers with valid analysis when necessary
+(at your discretion).
+Trend Analysis:
+• What long-term trends are visible in the temperature data?
+• Are there periods of acceleration or deceleration in warming?
+Seasonality:
+• Can you interpret the seasonal pattern?
+Is the seasonality constant, or time–varying? Explain how different R functions tackle
+the problem; explore both constant and time-varying cases and pick the one you reckon
+is the most suitable for the data.
+Noise and Uncertainty:
+• Briefly comment on the variation that is unexplained by the decomposition. Are there
+anomalies in the residuals?
 
+## Task 2
 
-### Task 2
+### SES or Holt-Winters
 
-```{r, fig.width = 6, fig.height = 3, fig.show = "hold", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
+fig.height=3, fig.width=5, fig.show = "hold", out.width = "50%"}
+
+```{r, fig.height = 3, fig.width = 5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
 seasonal_component <- stl_fit$time.series[, "seasonal"]
 deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
-# plot_ts_gg(train,
-#   ylab = "Temperature anomaly (°C)",
-# ) +
-#   geom_hline(yintercept = 0)
-
-## Holt-Winters with trend (gamma = FALSE)
+## HW with trend (gamma = FALSE)
 fit_holtwinters <- HoltWinters(train, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
 
-# Extract parameters correctly
+# Parameters extraction
 alpha_holtwinters <- fit_holtwinters$alpha
 beta_holtwinters  <- fit_holtwinters$beta
 
@@ -189,17 +202,20 @@ plot_ts_gg(train,
 ) +
   geom_hline(yintercept = 0) +
   geom_line(data = df_hw(fit_holtwinters, train), aes(x = t, y = fitted, color = "One-step-ahead forecast")) +
-  scale_color_manual(values = c("black", "red")) +
+  scale_color_manual(values = c("black", "#0072B2")) +
   theme(legend.position = "inside", legend.position.inside = c(0.2, 0.9)) +
   labs(color = NULL)
 ```
 
+What value of α have you used? Report it and explain how it is determined. How
+would your forecasts change with a different choice of α?
 
 
 
+### Forecasting the series
 
-```{r, fig.width = 6, fig.height = 3, fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized temperature anomalies (2011–2025) with 80% and 95% confidence bands."}
-## --- 15-year forecast from end of 2010 ---
+```{r, fig.height = 3, fig.width = 5, fig.show = "hold", out.width = "50%", fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized temperature anomalies (2011–2025) with 80% and 95% confidence bands."}
+# 15-year forecast from end of 2010
 fit_holtwinters_forecast <- forecast(fit_holtwinters, h = 15 * 12)
 
 fc_df <- data.frame(
@@ -225,11 +241,10 @@ ggplot() +
     x     = "Year",
     y     = "Temperature anomaly (°C)"
   ) +
-  theme_minimal(base_size = 10) +
   geom_hline(yintercept = 0)
 ```
 ```{r}
-## --- MAE at horizons: 1, 5, 10, 15 years ---
+# MAE at horizons: 1, 5, 10, 15 years
 actual <- window(deseasonalized, start = c(2011, 1), end = c(2025, 12))
 forecasts <- fit_holtwinters_forecast$mean  # point forecasts from holt
 
@@ -248,3 +263,15 @@ knitr::kable(mae_table, digits = 7, align = c("r", "r"),
              caption = "MAE at increasing forecast horizons")
 
 ```
+
+Briefly discuss your results. Do you envisage any pattern?
+
+
+
+
+
+
+
+
+
+

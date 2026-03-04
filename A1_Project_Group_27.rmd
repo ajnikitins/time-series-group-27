@@ -4,6 +4,8 @@ subtitle: "**Assignment 1 towards the final project | Group 27**"
 output:
   pdf_document:
     latex_engine: xelatex
+    fig_caption: yes
+    extra_dependencies: ["float"]
 fontsize: 10pt
 geometry: margin=2cm
 ---
@@ -14,7 +16,7 @@ library(forecast)
 library(tidyverse)
 library(gridExtra)
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center")
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
 
 plot_ts_gg <- function(
     x,
@@ -44,34 +46,28 @@ plot_ts_gg <- function(
 
 ### Exploratory Analysis
 
-```{r, fig.height=3, fig.width=6}
+```{r, fig.height=3, fig.width=6, fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
 #head(df)
 monthly_matrix <- as.matrix(df[, 2:13])
 monthly_vector <- as.numeric(t(monthly_matrix))
 
 gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
-# plot(gistemp_ts, main = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)", xlab = "Year", ylab = "Temperature anomalies  (°C)", xaxt = "n")
-# axis(1, at = seq(1880, 2020, by = 20))
-# abline(h = 0, lty = 2, col='red')
 
 plot_ts_gg(
   gistemp_ts,
-  title = "Monthly Northern Hemisphere temperature anomalies (GISTEMP)",
   ylab = "Temperature anomalies (°C)"
 ) +
   geom_hline(yintercept = 0)
 ```
 
-The time series shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
+The time series (Figure$~$\ref{fig:main}) shows a long-term upward trend in temperature anomalies over the sample period. Values are mostly negative before the mid-20th century and increase gradually over time. From approximately the 1980s onward, the rise becomes more pronounced, suggesting a possible acceleration in warming. Short-term fluctuations remain visible around this trend.
 
 The marginal variances appear relatively stable, as the dispersion does not increase with the level of the series. There is no strong visual evidence of heteroskedasticity. The variance can therefore be considered approximately constant over time. This observation supports the use of an additive decomposition rather than a multiplicative one.
 
 ### Task 1
 
 ```{r task1_decompo_prep, fig.width=10, fig.height=8, message=FALSE, warning=FALSE}
-
-
 #to ensure positive values when needed
 shift <- 0
 if (min(gistemp_ts, na.rm = TRUE) <= 0) {
@@ -81,7 +77,7 @@ gistemp_pos <- gistemp_ts + shift
 ```
 
 
-```{r task1_decompo, fig.width=10, fig.height=4, out.width = "100%"}
+```{r task1_decompo, fig.width=10, fig.height=4, out.width = "100%", fig.cap = "\\label{fig:decomp}Comparison of time-series decompositions of Northern Hemisphere temperature anomalies.", fig.show = "hold"}
 dec_add  <- decompose(gistemp_ts,  type = "additive")
 dec_mult <- decompose(gistemp_pos, type = "multiplicative")
 stl_fit  <- stl(gistemp_ts, s.window = "periodic")
@@ -167,17 +163,15 @@ grid::grid.draw(panel(df_stl(stl_fit, gistemp_ts), "STL decomposition (periodic 
 
 ### Task 2
 
-```{r, fig.width = 5, fig.height = 4, fig.show = "hold", out.width = "49%"}
+```{r, fig.width = 6, fig.height = 3, fig.show = "hold", fig.cap = "\\label{fig:hw}Deseasonalized Northern Hemisphere temperature anomalies (1950–2010) and Holt–Winters one-step ahead forceasts."}
 seasonal_component <- stl_fit$time.series[, "seasonal"]
 deseasonalized <- gistemp_ts - seasonal_component
 train <- window(deseasonalized, start = c(1950, 1), end = c(2010, 12))
 
-
-plot_ts_gg(train,
-  title = "Deseasonalized Northern Hemisphere temperature\nanomalies (1950–2010)",
-  ylab = "Temperature anomaly (°C)",
-) +
-  geom_hline(yintercept = 0)
+# plot_ts_gg(train,
+#   ylab = "Temperature anomaly (°C)",
+# ) +
+#   geom_hline(yintercept = 0)
 
 ## Holt-Winters with trend (gamma = FALSE)
 fit_holtwinters <- HoltWinters(train, gamma = FALSE, optim.start = c(alpha = 0.8, beta = 0.9))
@@ -190,21 +184,21 @@ alpha_holtwinters
 beta_holtwinters
 
 plot_ts_gg(train,
-  title = "Deseasonalized Northern Hemisphere temperature\nanomalies (1950–2010)",
   ylab = "Temperature anomaly (°C)",
   aes = list(color = "Observed"),
 ) +
   geom_hline(yintercept = 0) +
   geom_line(data = df_hw(fit_holtwinters, train), aes(x = t, y = fitted, color = "One-step-ahead forecast")) +
   scale_color_manual(values = c("black", "red")) +
-  theme(legend.position = "inside", legend.position.inside = c(0.2, 0.9))
+  theme(legend.position = "inside", legend.position.inside = c(0.2, 0.9)) +
+  labs(color = NULL)
 ```
 
 
 
 
 
-```{r, fig.width = 6, fig.height = 4}
+```{r, fig.width = 6, fig.height = 3, fig.cap = "\\label{fig:hw_pred}15-year Holt–Winters forecast of deseasonalized temperature anomalies (2011–2025) with 80% and 95% confidence bands."}
 ## --- 15-year forecast from end of 2010 ---
 fit_holtwinters_forecast <- forecast(fit_holtwinters, h = 15 * 12)
 
@@ -228,11 +222,11 @@ ggplot() +
   geom_line(data = train_df, aes(x = time, y = value), colour = "black", linewidth = 0.5) +
   geom_line(data = fc_df, aes(x = time, y = mean), colour = "steelblue", linewidth = 0.8) +
   labs(
-    title = "15Y HW forecast of deseasonalized temperature anomalies (2011–2025)",
     x     = "Year",
     y     = "Temperature anomaly (°C)"
   ) +
-  theme_minimal(base_size = 10)
+  theme_minimal(base_size = 10) +
+  geom_hline(yintercept = 0)
 ```
 ```{r}
 ## --- MAE at horizons: 1, 5, 10, 15 years ---

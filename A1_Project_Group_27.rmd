@@ -95,7 +95,6 @@ const_seasonality <- frequency(gistemp_ts)
 df_decomp <- function(dec_obj) {
   data.frame(
     t = as.numeric(time(dec_obj$x)),
-    month = as.integer(cycle(dec_obj$x)), #monthly index to aggregate seasonal effects for better visualization
     observed = as.numeric(dec_obj$x),
     trend = as.numeric(dec_obj$trend),
     seasonal = as.numeric(dec_obj$seasonal),
@@ -106,8 +105,7 @@ df_decomp <- function(dec_obj) {
 df_stl <- function(stl_obj, y) {
   t <- as.numeric(time(stl_obj$time.series[, 1])) #extracting time index
   data.frame(
-    t = as.numeric(time(stl_obj$time.series[, 1])),
-    month = as.integer(cycle(y)), #monthly index as in df_decomp
+    t = t,
     observed = as.numeric(y),
     trend = as.numeric(stl_obj$time.series[, "trend"]),
     seasonal = as.numeric(stl_obj$time.series[, "seasonal"]),

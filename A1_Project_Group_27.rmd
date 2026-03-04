@@ -227,7 +227,6 @@ $$
 \textbf{Level update} \quad \quad
 L_t = \alpha Y_t + (1 - \alpha) \left(L_{t-1} + T_{t-1} \right)
 $$
-
 $$
 \textbf{Trend update} \quad \quad
 T_t = \beta \left (L_t - L_{t-1} \right) + (1 - \beta) T_{t-1}
@@ -237,9 +236,9 @@ $$
 \hat{Y}_t (h) = (L_t + h T_t)
 $$
 
-We have let the model itself compute values for the smoothing parameters. Given a particular value of $\alpha$, $\beta$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This can be repeated for different values of $\alpha$ according to a grid search or some other hyper-parameter tuning method, so that the value which minimizes the sum of squares is eventually found.
+We have let the model itself compute values for the smoothing parameters. Given a particular value of $\alpha$, $\beta$, the algorithm involves iteratively producing one-step-ahead forecasts throughout the series, and then computing the sum of squares of all the prediction errors. This is then repeated for different values of $\alpha$, converging to a value that minimizes the sum of squared errors.
 
-Our analysis leads us to use $\alpha = .44$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother.
+Our analysis leads us to use $\alpha = .44$, which means that each observation has a 44% weight on the next level estimate. If it were higher, then the line representing the one-step-ahead forecast in Figure$~$\ref{fig:hw} would be even more closely resembling the original data; if it were lower, then the blue line would be smoother. Also, we use $\beta = 0.0016$, which effectivelly implies a fixed trend component.
 
 ### Forecasting the series
 
@@ -319,11 +318,17 @@ mape_results <- sapply(horizons, function(yr) {
   mean(abs(forecasts[1:h] - actual[1:h])) / mean(actual[1:h])
 })
 
+avg_results <- sapply(horizons, function(yr) {
+  h <- yr * 12
+  mean(actual[1:h])
+})
+
 # kable(mae_table, digits = 7, align = c("r", "r"),
             #  caption = "MAE at increasing forecast horizons")
 
 ```
 
-Figure$~$\ref{fig:hw_pred} includes the required plot.
+Figure$~$\ref{fig:hw_pred} predicts the deseasonalized temperature anomaly values for the 15 years past our previous cut-off of December 2010. The forecast projects a continuation of the upward trend, indicating continued warming overall, in line with anthropogenic climate change and the greenhouse effect. The 80% and 95% confidence intervals widen over time, which represents the growing forecast uncertainty. The further we try to predict, the less certain the prediction. Comparing our forecast with the observed data, we can see that the forecasted trend is close to the actual results, and that the observed data almost entirely stayed within the 80% CI. Both intervals are very wide, leading to difficulty in our ability to make any significant conclusions regarding the forecast.
 
-As expected and reasonable, the mean absolute error increases with the horizon, h: it is equal to $0.10$ centigrade for a one-year horizon; $0.14$ for a 5-year horizon; $0.16$ for a 10-year horizon, and $0.18$ for a 15-year horizon.
+The mean absolute error increases with the forecast horizon: it is equal to $0.10$ centigrade for a one-year horizon; $0.14$ for a 5-year horizon; $0.16$ for a 10-year horizon, and $0.18$ for a 15-year horizon.
+The absolute errors are small, with the worst-case error of 0.18 centigrade being only about 15% of the average observed level ($\approx$ 1.2 centigrade). However, there is a gradual weakening of the forecast quality. Considering the increasing MAEs and the forecast line being below the observed time series, we interpret that the forecast may be underestimating the trend.

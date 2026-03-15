@@ -1,0 +1,25 @@
+---
+title: "Bocconi University - 20236 Time Series Analysis"
+subtitle: "**Take home assignment 2 | Group 27**"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    extra_dependencies: ["wrapfig"]
+fontsize: 10pt
+geometry: margin=2cm
+---
+
+```{r, setup, include=FALSE}
+library(tidyverse)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = TRUE)
+
+# set_theme(theme_classic())
+# update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
+
+```
+
+# Appendix: All code for this report
+
+```{r ref.label=knitr::all_labels(), echo=TRUE, eval=FALSE}
+```

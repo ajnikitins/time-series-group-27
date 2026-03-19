@@ -1,0 +1,63 @@
+---
+title: "Bocconi University - 20236 Time Series Analysis"
+subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins, Madelief van Weerdenburg**"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    fig_caption: yes
+    extra_dependencies: ["float"]
+fontsize: 10pt
+geometry: margin=2cm
+header-includes:
+  - \setlength{\textfloatsep}{6pt}
+  - \setlength{\intextsep}{6pt}
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(forecast)
+library(tidyverse)
+library(gridExtra)
+library(knitr)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
+
+set_theme(theme_classic())
+update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
+
+plot_ts_gg <- function(
+    x,
+    title = NULL,
+    xlab = NULL,
+    ylab = NULL,
+    aes = NULL,
+    facet_ncol = 1,
+    wrap_width = 45
+) {
+  if (!inherits(x, "ts")) {
+    stop("Input must be ts.")
+  }
+
+  df <- tibble(
+    Time = as.numeric(time(x)),
+    Value = as.numeric(x)
+  )
+
+  p <- ggplot(df, aes(Time, Value, !!!aes)) +
+    geom_line() +
+    labs(title = title, x = NULL, y = ylab)
+
+  p
+}
+```
+
+## Task 1
+
+```{r, fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
+df <- read.csv("", skip = 1, na.strings = "***")
+
+
+```
+
+
+

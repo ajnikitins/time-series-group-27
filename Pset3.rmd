@@ -1,16 +1,19 @@
 ---
 title: "Bocconi University - 20236 Time Series Analysis"
-subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins, Madelief van Weerdenburg**"
+subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins,
+  Madelief van Weerdenburg**"
 output:
+  html_document:
+    df_print: paged
   pdf_document:
     latex_engine: xelatex
-    fig_caption: yes
-    extra_dependencies: ["float"]
+    fig_caption: true
+    extra_dependencies: float
 fontsize: 10pt
 geometry: margin=2cm
 header-includes:
-  - \setlength{\textfloatsep}{6pt}
-  - \setlength{\intextsep}{6pt}
+- \setlength{\textfloatsep}{6pt}
+- \setlength{\intextsep}{6pt}
 ---
 
 ```{r setup, include=FALSE}
@@ -54,18 +57,22 @@ ggplot(obj1_nom, aes(x = Time, y = Value, color = "Nominal rate"))+
   geom_line()+
   labs(title = NULL, x= NULL, y= "interest rates for Italian 10Y bonds")+
   geom_line(data = obj2_real, aes(x = Time, y = Value, color = "Real rate"))+
+  scale_color_manual(values = c(
+    "Nominal rate" = "black",
+    "Real rate" = "blue"
+  )) +
   theme(legend.position = "inside", legend.position.inside = c(0.3, 0.9)) +
   labs(color = NULL)
 
 
 ```
 We have plotted the nominal and real interest rate for Italian 10Y bonds. Since the two time series
-represent a 1-1 function of each other, it is reasonable to focus our analysis exclusively on one of time,the nominal rate.
- Figure$~$\ref{fig:main} shows that, evidently, a time series that represents nominal rates for public bonds over decades cannot be described as stationary, and is also difficult to transform into a stationary one.
+are closely related, it is reasonable to focus our analysis exclusively focus our analysis on one of them, namely the nominal rate.
+Figure$~$\ref{fig:main} shows that, evidently, a time series that represents nominal rates for public bonds over decades cannot be described as stationary, and is also difficult to transform into a stationary one.
 Inflation shocks, fiscal crises, credibility concerns, credit downgrades, unexpected shocks, political decisions all play a role in determining the sequence that cannot be simplified by first-differencing or other methods.
 Thus, it is reasonable to assume that the nominal interest rate's level at time t is dependent on the unobserved state of a random process that satisfies the Markov property. In this simplified version, we then assume the existence of three hidden states: a recession, characterized by high  rates, a boom, characterized by less risky, lower interest rates, and a third state representing a stable path.
 
-```{r fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:main}decoded optimal state sequence and comparison with data"}
+```{r fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%"}
 
 # step 1 - model specification
 # using depmix function per lab2, with three states per instructions
@@ -73,23 +80,27 @@ y <- as.numeric(nom_bond)
 model <- depmix(y ~ 1, data = data.frame(y),nstates = 3)
 #model
 
-# step 2: model estimation
-# using fit function from same package
-fmodel <- fit(model)
-#fmodel
-#summary(fmodel)
 
+```
+
+```{r, include=FALSE}
+fmodel <- fit(model)
+#summary(fmodel)
+```
+
+
+```{r}
 # printing the 3 coefficients. note that depmix returns an object with a number of slots
 # of these, we are interested in 'response', a list of states
 # [[i]] selects the i-th state (there's two, the second is sd)
 # [[1]] selects the first response within that state (think of row and column)
 # @parameters$coefficients accesses the actual fitted coefficients
-x=c(1,2,3)
-for (i in x) {
-  #print(c("MLE",i))
-  #print(fmodel@response[[i]][[1]]@parameters$coefficients)
-}
-
+ml_coeffs <- sapply(1:3, function(i) {
+  fmodel@response[[i]][[1]]@parameters$coefficients
+})
+sds <- sapply(1:3, function(i) {
+  fmodel@response[[i]][[1]]@parameters$sd
+})
 # the problem is hunting for the right parameters. there are 18 parameters in the 
 # standard error output, 11 whose se is specified (free)
 # 3 are initial state parameters 
@@ -98,13 +109,38 @@ for (i in x) {
 # total is 18
 # then print V and note that pars 13, 15 and 17 are s1_mean, s2_mean, s3_mean.
 # these 20 minutes of philosophizing have led me to the following 2 loc's.
+
 V <- standardError(fmodel)
 coef_se <- V$se[c(13, 15, 17)]
 #coef_se
 
+# as the previous comment made clear, the transition probs are included in the 
+# standarderror output. in particular, if the first three pars are the initial
+# probabilities, then we need the 9 that come after (4:12)
+transition_prob <- matrix(V$par[4:12], nrow = 3, ncol = 3, byrow = TRUE)
+rownames(transition_prob) <- paste0("fromS", 1:3)
+colnames(transition_prob) <- paste0("toS", 1:3)
 
+transition_prob
 
+table_out <- data.frame(
+  State = paste("State", 1:3),
+  Mean = round(ml_coeffs, 3),
+  SE_Mean = round(coef_se, 3),
+  SD = round(sds, 3)
+)
+table_out
 
+```
+
+The first table presents the transition probabilities. It indicates strong persistence, particularly for states 2 and 3, as reflected in the high diagonal probabilities.
+The second table presents the estimates for each state and their associated standard deviation and SE measures.
+State 3 can be interpreted as the recession regime, as it presents the highest mean rate, and the highest standard error too, indicating more volatility and risk.
+State 2 may refer to the stable regime, as it has the lowest standard deviation; state 1 is instead characterized by the lowest mean nominal rate, allowing us to interpret it as the boomimg regime.
+
+The decoded sequence indicates a mix of long regimes and some periods of more frequent switching, which is consistent with a Markov regime model and with the strong persistence estimated in the transition matrix.
+
+```{r fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:main}decoded optimal state sequence and comparison with data"}
 
 # step 3: decoding
 estStates <- posterior(fmodel)
@@ -130,15 +166,8 @@ ggplot(results, aes(x = Time, y = Value))+
   geom_line()+
   facet_wrap(variable ~ ., scales="free", ncol=1)+
   labs(color = NULL)
-
 ```
-Model estimation gives us the following ML estimates for each state: the coefficient associated to the "boom" state is estimated to be 2.137; the coefficient associated to the "stable" state is estimated to be 4.251; the coefficient associated to the "recession" state is estimated to be 5.640. The associated standard errors are 0.074, 0.0376, 0.0923 respectively.
-
-The decoded sequence indicates a mix of long regimes and some periods of more frequent switching, which is consistent with a Markov regime model and with the strong persistence estimated in the transition matrix. The high-rate regime is concentrated in earlier years and around periods of stress, while the later sample is mostly assigned to lower-rate regimes.
-
-
-
-## Task (b)
+The decoded state sequence exhibits long periods of persistence, with relatively infrequent switching between regimes. This is consistent with the estimated transition matrix, which shows high probabilities along the diagonal, indicating strong state persistence. The model identifies distinct regimes corresponding to low, intermediate, and high interest rate levels, and the timing of these regimes broadly aligns with the observed movements in the data, capturing periods of higher rates as well as more stable and lower-rate environments.
 
 
 

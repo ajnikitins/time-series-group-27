@@ -7,26 +7,78 @@ output: pdf_document
 ```{r setup, include=FALSE}
 rm(list = ls())
 library(forecast)
+library(ggplot2)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
 ```
 
-## R Markdown
+```{r implementation}
+df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
+monthly_matrix <- as.matrix(df[, 2:13])
+monthly_vector <- as.numeric(t(monthly_matrix))
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
+gistemp_stl <- stl(gistemp_ts, s.window = "periodic")
+gistemp_adj <- seasadj(gistemp_stl)
 ```
+### Choice of a Hidden Markov Model
 
-## Including Plots
+In the context of GISTEMP temperature data, the dynamics are likely non-stationary, with possible structural changes such as periods of stable temperatures followed by phases of accelerated warming. Standard time series models may fail to capture these features, whereas Hidden Markov Models allow the data to depend on an underlying latent state that can switch over time, making them well suited to identify such regime changes.
 
-You can also embed plots, for example:
+###State-dependent level
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+We first consider Gaussian Hidden Markov Models with state-dependent means and variances. To assess the appropriate number of latent regimes, we estimate both a 2-state and a 3-state specification, and compare them using log-likelihood, AIC and BIC.
+
+```{r hmm_level}
+library(depmixS4)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+
+data_hmm <- data.frame(
+  time_index = as.numeric(time(gistemp_adj)),
+  y = as.numeric(gistemp_adj)
+)
+
+#2-state Gaussian HMM
+mod_hmm_2 <- depmix(y ~ 1, data = data_hmm, nstates = 2)
+fit_hmm_2 <- fit(mod_hmm_2)
+
+#3-state Gaussian HMM
+mod_hmm_3 <- depmix(y ~ 1, data = data_hmm, nstates = 3)
+fit_hmm_3 <- fit(mod_hmm_3)
+
+comparison_table <- data.frame(
+  Model = c("2-state HMM", "3-state HMM"),
+  logLik = c(logLik(fit_hmm_2), logLik(fit_hmm_3)),
+  AIC = c(AIC(fit_hmm_2), AIC(fit_hmm_3)),
+  BIC = c(BIC(fit_hmm_2), BIC(fit_hmm_3))
+)
+
+comparison_table
+summary(fit_hmm_2)
+summary(fit_hmm_3)
 ```
+The 3-state model provides a substantially better fit, with a higher log-likelihood and lower AIC and BIC than the 2-state model. This indicates that allowing for an additional regime improves the representation of the temperature dynamics.
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+Indeed, while the 2-state model captures a simple contrast between low and high temperature levels, the 3-state model identifies a more nuanced structure, distinguishing between low, intermediate and high regimes. This appears more consistent with the gradual evolution of climate patterns.
+
+Therefore, the 3-state model is preferred as it improves the fit. However, its validity should be further assessed by examining the stability and interpretability of the decoded regimes, to rule out potential overfitting.
+
+```{r decoding}
+states_3 <- posterior(fit_hmm_3)
+
+data_hmm$state_3 <- factor(states_3$state)
+
+ggplot(data_hmm, aes(x = time_index, y = y)) +
+  geom_line(color = "black", linewidth = 0.35) +
+  geom_point(aes(color = state_3), size = 0.5, alpha = 0.7) +
+  labs(
+    title = "Decoded regimes from the 3-state HMM",
+    x = "Year",
+    y = "Temperature anomaly",
+    color = "Regime"
+  ) +
+  theme_minimal()
+```
+The decoded regimes appear stable and clearly interpretable over time. Transitions between states are relatively infrequent and follow a coherent long-term pattern, suggesting that the model captures meaningful structural changes rather than overfitting.

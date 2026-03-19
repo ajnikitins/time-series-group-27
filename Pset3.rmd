@@ -19,6 +19,7 @@ library(forecast)
 library(tidyverse)
 library(gridExtra)
 library(knitr)
+library(depmixS4)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
 
@@ -51,13 +52,35 @@ plot_ts_gg <- function(
 }
 ```
 
-## Task 1
+## Task (a)
 
-```{r, fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:main}Monthly Northern Hemisphere temperature anomalies (GISTEMP)."}
-df <- read.csv("", skip = 1, na.strings = "***")
+```{r, fig.height=3, fig.width=6, fig.show = "hold", out.width = "60%", fig.cap = "\\label{fig:main}nominal and real interest rates for 10Y Italian bonds"}
+df <- read.csv("data_assHMM.csv", header = TRUE, sep = ",")
+
+nom_bond <- as.ts(df$ITAbond_nom)
+real_bond <- as.ts(df$ITAbond_real)
+
+Time_useful <- as.Date(df$Time, format = "%Y_%m_%d")
+
+obj1_nom <- tibble(
+  Time = Time_useful,
+  Value = nom_bond
+)
+obj2_real <- tibble(
+  Time = Time_useful,
+  Value = real_bond
+)
+
+ggplot(obj1_nom, aes(x = Time, y = Value, color = "Nominal rate"))+
+  geom_line()+
+  labs(title = NULL, x= NULL, y= "interest rates for Italian 10Y bonds")+
+  geom_line(data = obj2_real, aes(x = Time, y = Value, color = "Real rate"))+
+  theme(legend.position = "inside", legend.position.inside = c(0.3, 0.9)) +
+  labs(color = NULL)
 
 
 ```
-
+We have plotted the nominal and real interest rate for Italian 10Y bonds.
+Why is using a HMM model reasonable?
 
 

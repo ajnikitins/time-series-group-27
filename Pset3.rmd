@@ -110,6 +110,7 @@ sds <- sapply(1:3, function(i) {
 # then print V and note that pars 13, 15 and 17 are s1_mean, s2_mean, s3_mean.
 V <- standardError(fmodel)
 coef_se <- V$se[c(13, 15, 17)]
+sd_se <- V$se[c(14, 16, 18)]
 #coef_se
 
 # as the previous comment made clear, the transition probs are included in the 
@@ -125,15 +126,16 @@ table_out <- data.frame(
   State = paste("State", 1:3),
   Mean = round(ml_coeffs, 3),
   SE_Mean = round(coef_se, 3),
-  SD = round(sds, 3)
+  sd = round(sds, 3),
+  SE_sd = round(sd_se, 3)
 )
 table_out
 
 ```
 
-After specifying the model, we have fitted it by the expectation maximization algorithm. In total, there are 18 parameters: 3 initial probabilities, 9 transition probabilities and 6 response parameters, i.e. the intercepts and the associated standard deviations.
+After specifying the model, we have fitted it by the expectation maximization algorithm. In total, there are 18 parameters: 3 initial probabilities, 9 transition probabilities and 6 response parameters, i.e. the intercepts and the associated standard deviations. In particular, the initial probability associated to state 1 is 1; intuitively, the model is sure that the series begins in the high-rate regime, which is visually obvious from the data starting at close to 8%.
 
-The first table presents the transition probabilities. It indicates strong persistence, particularly for states 2 and 3, as reflected in the high diagonal probabilities.
+The first table presents the transition probabilities. It indicates strong persistence, particularly for states 2 and 3, as reflected in the high diagonal probabilities. Since many of these transition probabilities are small, it is not possible to compute standard error measures for them. In addition, we can note that, even though some transitions are never observed -e.g. from a boom to a recession -, none of the 9 transition probabilities are zero. While apparently counter-intuitive, the EM algorithm used to fit the model is not based on an absolute count of observed transitions: there will always be a small probability attached even to unlikely transitions.
 The second table presents the estimates for each state and its associated standard deviation and SE measures.
 
 State 1 can be interpreted as the recession regime, as it presents the highest mean rate, and the highest standard error too, indicating more volatility and risk.

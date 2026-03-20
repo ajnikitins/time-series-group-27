@@ -1,15 +1,34 @@
 ---
 title: "Bocconi University - 20236 Time Series Analysis"
-subtitle: "**Assignment 2 towards the final project | Group 27**"
-output: pdf_document
+subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins,
+  Madelief van Weerdenburg**"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    fig_caption: true
+    extra_dependencies: float
+  html_document:
+    df_print: paged
+fontsize: 10pt
+geometry: margin=2cm
+header-includes:
+- \setlength{\textfloatsep}{6pt}
+- \setlength{\intextsep}{6pt}
 ---
 
 ```{r setup, include=FALSE}
 rm(list = ls())
-library(forecast)
+library(depmixS4)
+library(tidyverse)
+library(gridExtra)
+library(stargazer)
 library(ggplot2)
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
+
+set_theme(theme_classic())
+update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
+
 ```
 
 ```{r implementation}

@@ -135,9 +135,11 @@ table_out
 
 After specifying the model, we have fitted it by the expectation maximization algorithm. In total, there are 18 parameters: 3 initial probabilities, 9 transition probabilities and 6 response parameters, i.e. the intercepts and the associated standard deviations. In particular, the initial probability associated to state 1 is 1; intuitively, the model is sure that the series begins in the high-rate regime, which is visually obvious from the data starting at close to 8%.
 
-The first table presents the transition probabilities. It indicates strong persistence, particularly for states 2 and 3, as reflected in the high diagonal probabilities. Since many of these transition probabilities are small, it is not possible to compute standard error measures for them. In addition, we can note that, even though some transitions are never observed -e.g. from a boom to a recession -, none of the 9 transition probabilities are zero. While apparently counter-intuitive, the EM algorithm used to fit the model is not based on an absolute count of observed transitions: there will always be a small probability attached even to unlikely transitions.
-The second table presents the estimates for each state and its associated standard deviation and SE measures.
+The model assigns effectively null probabilities to some transitions – e.g., from a boom (State 2) to a recession (State 1) –, implying a lack of evidence for these transitions. This is a consequence of the persistence inherent in the data and suggests that either these transitions are effectively impossible or that the time series is not long enough to capture them. Likewise, due to both this persistence and a lack of sufficient information for specific transitions, the model is incapable of calculating the standard errors for their transition probabilities.
 
+In addition, we can note that, even though some transitions are never observed -e.g. from a boom to a recession -, none of the 9 transition probabilities are zero. While apparently counter-intuitive, the EM algorithm used to fit the model is not based on an absolute count of observed transitions: there will always be a small probability attached even to unlikely transitions.
+
+The second table presents the estimates for each state and its associated standard deviation and SE measures.
 State 1 can be interpreted as the recession regime, as it presents the highest mean rate, and the highest standard error too, indicating more volatility and risk.
 State 3 may refer to the stable regime, as it has the lowest standard deviation; state 2 is instead characterized by the lowest mean nominal rate, allowing us to interpret it as the boomimg regime.
 

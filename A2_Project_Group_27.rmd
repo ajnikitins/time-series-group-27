@@ -86,13 +86,8 @@ Indeed, while the 2-state model captures a simple contrast between low and high 
 Therefore, the 3-state model is preferred as it improves the fit. However, its validity should be further assessed by examining the stability and interpretability of the decoded regimes, to rule out potential overfitting.
 
 
-```{r}
-sample_matrix <- matrix(C<-1:10, nrow = 3, ncol = 10, byrow = TRUE)
-sample_matrix
 
 
-
-```
 
 
 ```{r decoding}
@@ -162,7 +157,6 @@ sapply(1:4, function(i) {
 
 
 
-est_mean_trajectory_nmod1[est_States_1[,1] == 2] = est_mean_nmod1_state2
 
 # computing est_mean trajectory for subsample model 2 (3 states)
 est_mean_nmod2_state1 <- f_nmod_2@response[[1]][[1]]@parameters$coefficients
@@ -172,33 +166,6 @@ est_mean_nmod2_state3 <- f_nmod_2@response[[3]][[1]]@parameters$coefficients
 est_mean_trajectory_nmod2 <- rep(est_mean_nmod2_state1, times = length(data_hmm_new$y))
 est_mean_trajectory_nmod2[est_States_2[,1] == 2] = est_mean_nmod2_state2
 est_mean_trajectory_nmod2[est_States_2[,1] == 3] = est_mean_nmod2_state3
-
-# computing est_mean trajectory for subsample model 3 (4 states)
-est_mean_nmod3_state1 <- f_nmod_3@response[[1]][[1]]@parameters$coefficients
-est_mean_nmod3_state2 <- f_nmod_3@response[[2]][[1]]@parameters$coefficients
-est_mean_nmod3_state3 <- f_nmod_3@response[[3]][[1]]@parameters$coefficients
-est_mean_nmod3_state4 <- f_nmod_3@response[[4]][[1]]@parameters$coefficients
-
-est_mean_trajectory_nmod3 <- rep(est_mean_nmod3_state1, times = length(data_hmm_new$y))
-est_mean_trajectory_nmod3[est_States_3[,1] == 2] = est_mean_nmod3_state2
-est_mean_trajectory_nmod3[est_States_3[,1] == 3] = est_mean_nmod3_state3
-est_mean_trajectory_nmod3[est_States_3[,1] == 4] = est_mean_nmod3_state4
-
-# one
-vis <- tibble(
-  time_index = abs(data_hmm_new$time_index),
-  estimated_mean = est_mean_trajectory_nmod1,
-  sample_trajectory = data_hmm_new$y
-) %>%
-  tidyr::pivot_longer(
-    cols = c(estimated_mean, sample_trajectory),
-    names_to = "variable",
-    values_to = "Value"
-  )
-
-ggplot(vis, aes(x = time_index, y = Value)) +
-  geom_line() +
-  facet_wrap(~ variable, scales = "free", ncol = 1)
 
 
 # two
@@ -217,19 +184,5 @@ ggplot(vis, aes(x = time_index, y = Value)) +
   geom_line() +
   facet_wrap(~ variable, scales = "free", ncol = 1)
 
-# three
-vis <- tibble(
-  time_index = abs(data_hmm_new$time_index),
-  estimated_mean = est_mean_trajectory_nmod3,
-  sample_trajectory = data_hmm_new$y
-) %>%
-  tidyr::pivot_longer(
-    cols = c(estimated_mean, sample_trajectory),
-    names_to = "variable",
-    values_to = "Value"
-  )
 
-ggplot(vis, aes(x = time_index, y = Value)) +
-  geom_line() +
-  facet_wrap(~ variable, scales = "free", ncol = 1)
 ```

@@ -110,79 +110,253 @@ The decoded regimes appear stable and clearly interpretable over time. Transitio
 
 ```{r}
 
-data_hmm_new <- data_hmm[data_hmm$time_index < 1976, ]
+# data_hmm_new <- data_hmm[data_hmm$time_index < 1976, ]
 
 
-set.seed(555)
-nmod_1 <- depmix(y ~ 1, data = data_hmm, nstates = 2)
-f_nmod_1 <- fit(nmod_1)
-est_States_1 <- posterior(f_nmod_1)
+# set.seed(555)
+# nmod_1 <- depmix(y ~ 1, data = data_hmm, nstates = 2)
+# f_nmod_1 <- fit(nmod_1)
+# est_States_1 <- posterior(f_nmod_1)
 
-nmod_2 <- depmix(y ~ 1, data = data_hmm, nstates = 3)
-f_nmod_2 <- fit(nmod_2)
-est_States_2 <- posterior(f_nmod_2)
+# nmod_2 <- depmix(y ~ 1, data = data_hmm, nstates = 3)
+# f_nmod_2 <- fit(nmod_2)
+# est_States_2 <- posterior(f_nmod_2)
 
-nmod_3 <- depmix(y ~ 1, data = data_hmm, nstates = 4)
-f_nmod_3 <- fit(nmod_3)
-est_States_3 <- posterior(f_nmod_3)
+# nmod_3 <- depmix(y ~ 1, data = data_hmm, nstates = 4)
+# f_nmod_3 <- fit(nmod_3)
+# est_States_3 <- posterior(f_nmod_3)
 
-comparison_table <- data.frame(
-  Model = c("2-state HMM", "3-state HMM", "test"),
-  logLik = c(logLik(f_nmod_1), logLik(f_nmod_2), logLik(f_nmod_3)),
-  AIC = c(AIC(f_nmod_1), AIC(f_nmod_2), AIC(f_nmod_3)),
-  BIC = c(BIC(f_nmod_1), BIC(f_nmod_2), BIC(f_nmod_3))
-)
+# comparison_table <- data.frame(
+#   Model = c("2-state HMM", "3-state HMM", "test"),
+#   logLik = c(logLik(f_nmod_1), logLik(f_nmod_2), logLik(f_nmod_3)),
+#   AIC = c(AIC(f_nmod_1), AIC(f_nmod_2), AIC(f_nmod_3)),
+#   BIC = c(BIC(f_nmod_1), BIC(f_nmod_2), BIC(f_nmod_3))
+# )
 
-f_nmod_1@response[[1]][[1]]@parameters$coefficients
+# f_nmod_1@response[[1]][[1]]@parameters$coefficients
 
-# computing est_mean trajectory for subsample model 1 (2 states)
+# # computing est_mean trajectory for subsample model 1 (2 states)
 
-testy <- lapply(1:2, function(i) {
-  lapply(f_nmod_1@response, function(resp) {
-    resp[[1]]@parameters$coefficients
-  })
-})
+# testy <- lapply(1:2, function(i) {
+#   lapply(f_nmod_1@response, function(resp) {
+#     resp[[1]]@parameters$coefficients
+#   })
+# })
 
-testy
-
-
-sapply(1:3, function(i) {
-  f_nmod_2@response[[i]][[1]]@parameters$coefficients
-})
+# testy
 
 
-sapply(1:4, function(i) {
-  f_nmod_3@response[[i]][[1]]@parameters$coefficients
-})
+# sapply(1:3, function(i) {
+#   f_nmod_2@response[[i]][[1]]@parameters$coefficients
+# })
+
+
+# sapply(1:4, function(i) {
+#   f_nmod_3@response[[i]][[1]]@parameters$coefficients
+# })
 
 
 
 
-# computing est_mean trajectory for subsample model 2 (3 states)
-est_mean_nmod2_state1 <- f_nmod_2@response[[1]][[1]]@parameters$coefficients
-est_mean_nmod2_state2 <- f_nmod_2@response[[2]][[1]]@parameters$coefficients
-est_mean_nmod2_state3 <- f_nmod_2@response[[3]][[1]]@parameters$coefficients
+# # computing est_mean trajectory for subsample model 2 (3 states)
+# est_mean_nmod2_state1 <- f_nmod_2@response[[1]][[1]]@parameters$coefficients
+# est_mean_nmod2_state2 <- f_nmod_2@response[[2]][[1]]@parameters$coefficients
+# est_mean_nmod2_state3 <- f_nmod_2@response[[3]][[1]]@parameters$coefficients
 
-est_mean_trajectory_nmod2 <- rep(est_mean_nmod2_state1, times = length(data_hmm_new$y))
-est_mean_trajectory_nmod2[est_States_2[,1] == 2] = est_mean_nmod2_state2
-est_mean_trajectory_nmod2[est_States_2[,1] == 3] = est_mean_nmod2_state3
+# est_mean_trajectory_nmod2 <- rep(est_mean_nmod2_state1, times = length(data_hmm_new$y))
+# est_mean_trajectory_nmod2[est_States_2[,1] == 2] = est_mean_nmod2_state2
+# est_mean_trajectory_nmod2[est_States_2[,1] == 3] = est_mean_nmod2_state3
 
 
-# two
-vis <- tibble(
-  time_index = abs(data_hmm_new$time_index),
-  estimated_mean = est_mean_trajectory_nmod2,
-  sample_trajectory = data_hmm_new$y
-) %>%
-  tidyr::pivot_longer(
-    cols = c(estimated_mean, sample_trajectory),
-    names_to = "variable",
-    values_to = "Value"
-  )
+# # two
+# vis <- tibble(
+#   time_index = abs(data_hmm_new$time_index),
+#   estimated_mean = est_mean_trajectory_nmod2,
+#   sample_trajectory = data_hmm_new$y
+# ) %>%
+#   tidyr::pivot_longer(
+#     cols = c(estimated_mean, sample_trajectory),
+#     names_to = "variable",
+#     values_to = "Value"
+#   )
 
-ggplot(vis, aes(x = time_index, y = Value)) +
+# ggplot(vis, aes(x = time_index, y = Value)) +
+#   geom_line() +
+#   facet_wrap(~ variable, scales = "free", ncol = 1)
+
+
+```
+
+```{r multi-state fit}
+
+fit_models <- \(data, max_states, reps, trend = FALSE, seed = 555) {
+  set.seed(seed)
+
+  models <- tibble()
+
+  if (trend) {
+    formula <- y ~ time_index
+  } else {
+    formula <- y ~ 1
+  }
+
+  for (n in 2:max_states) {
+    models_iter <- tibble(iter = 1:reps, n = n) %>%
+      rowwise() %>%
+      mutate(mod = list(fit(depmix(formula, data = data, nstates = n))))
+
+    models <- bind_rows(models, models_iter)
+  }
+
+  models <- models %>%
+    rowwise() %>%
+    mutate(
+      across(mod, list(
+        Model = ~ paste0(.@nstates, "-state HMM"),
+        logLik = ~ as.numeric(logLik(.)),
+        AIC = AIC,
+        BIC = BIC
+      ))
+    ) %>%
+    ungroup() %>%
+    slice_max(mod_logLik, n = 1)
+
+  models
+}
+
+# comparison_table <- fit_models(data_hmm, max_states = 8, reps = 30)
+# saveRDS(comparison_table, "work/models.RDS")
+comparison_table <- readRDS("work/models.RDS")
+
+comparison_table %>%
+  pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
+  ggplot(aes(x = n, y = val)) +
   geom_line() +
-  facet_wrap(~ variable, scales = "free", ncol = 1)
+  facet_wrap(~ indicator)
 
+# BIC decreases until 6 states
+```
 
+```{r multi-state decoding}
+# Check state interpretability and stability
+
+## Select max likelihood model for each state choice
+mod_selected <- comparison_table %>%
+  filter(between(n, 3, 6))
+
+decoding_table <- mod_selected %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm$y, .by = c(iter, n))
+
+decoding_table %>%
+  ggplot(aes(x = t, y = y)) +
+  geom_line(aes(y = state), alpha = 0.3) +
+  geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state)), size = 0.5, alpha = 0.7) +
+  facet_wrap(~ n) +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State"))
+
+# Consequence of only modelling a level: states are splitting up the increasing trend
+
+decoding_table %>%
+  count(n, state, name = "count") %>%
+  mutate(prop = count / sum(count) * 100, .by = n) %>%
+  ggplot(aes(x = state, y = prop)) +
+  geom_col() +
+  facet_wrap(~ n)
+
+walk(mod_selected$mod, summary)
+
+# 6 is too much, 5 needlessly splits the initial level, 4 splits the increased level, could be better than 3
+# The problem is that we only have a state-dependent level, we are not taking into account the changing trend.
+```
+
+```{r multi-state short}
+# Repeated for the shorter sample
+data_hmm_short <- data_hmm[data_hmm$time_index < 1976, ]
+
+# Fit
+# comparison_table_short <- fit_models(data_hmm_short, max_states = 8, reps = 30)
+# saveRDS(comparison_table_short, "work/models_short.RDS")
+comparison_table_short <- readRDS("work/models_short.RDS")
+
+comparison_table_short %>%
+  pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
+  ggplot(aes(x = n, y = val)) +
+  geom_line() +
+  facet_wrap(~ indicator)
+
+# Improvement plateaus already at 3,4 states
+
+# Decoding
+
+# Check state interpretability and stability
+
+## Select max likelihood model for each state choice
+mod_selected_short <- comparison_table_short %>%
+  filter(between(n, 2, 4))
+
+decoding_table_short <- mod_selected_short %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm_short$y, .by = c(iter, n))
+
+decoding_table_short %>%
+  ggplot(aes(x = t, y = y)) +
+  geom_line(aes(y = state), alpha = 0.3) +
+  geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state)), size = 0.5, alpha = 0.7) +
+  facet_wrap(~ n) +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State"))
+
+# Consequence of only modelling a level: states are splitting up the increasing trend
+
+decoding_table_short %>%
+  count(n, state, name = "count") %>%
+  mutate(prop = count / sum(count) * 100, .by = n) %>%
+  ggplot(aes(x = state, y = prop)) +
+  geom_col() +
+  facet_wrap(~ n)
+
+walk(mod_selected_short$mod, summary)
+```
+
+```{r multi-sample trend}
+# Fit
+# comparison_table_trend <- fit_models(data_hmm, max_states = 8, reps = 30, trend = TRUE)
+# saveRDS(comparison_table_trend, "work/models_trend.RDS")
+comparison_table_trend <- readRDS("work/models_trend.RDS")
+
+comparison_table_trend %>%
+  pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
+  ggplot(aes(x = n, y = val)) +
+  geom_line() +
+  facet_wrap(~ indicator)
+
+# More interesting, BIC bottoms out at 5
+
+# Decoding
+
+# Check state interpretability and stability
+
+## Select max likelihood model for each state choice
+mod_selected_trend <- comparison_table_trend %>%
+  filter(between(n, 2, 6))
+
+decoding_table_trend <- mod_selected_trend %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm$y, .by = c(iter, n))
+
+decoding_table_trend %>%
+  ggplot(aes(x = t, y = y)) +
+  geom_line(aes(y = state), alpha = 0.3) +
+  geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state)), size = 0.5, alpha = 0.7) +
+  facet_wrap(~ n) +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State"))
+
+decoding_table_trend %>%
+  count(n, state, name = "count") %>%
+  mutate(prop = count / sum(count) * 100, .by = n) %>%
+  ggplot(aes(x = state, y = prop)) +
+  geom_col() +
+  facet_wrap(~ n)
+
+walk(mod_selected_trend$mod, summary)
 ```

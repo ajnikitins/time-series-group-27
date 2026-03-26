@@ -117,7 +117,7 @@ plot_ic_base
 
 ## Select max likelihood model for each state choice
 mod_selected <- comparison_table %>%
-  filter(between(n, 3, 6))
+  filter(between(n, 4, 6))
 
 response_table <- mod_selected %>%
   rowwise() %>%
@@ -247,7 +247,7 @@ plot_ic_trend
 
 ## Select max likelihood model for each state choice
 mod_selected_trend <- comparison_table_trend %>%
-  filter(between(n, 2, 5))
+  filter(between(n, 3, 5))
 
 response_table_trend <- mod_selected_trend %>%
   rowwise() %>%
@@ -290,15 +290,15 @@ plot_ic_short
 plot_ic_trend
 ```
 
-```{r comparison plot base, out.width = "100%", fig.width = 8, fig.height = 4, fig.cap = "Decoded states for state-dependent level HMM by number of states. Lines indicate estimated state means."}
+```{r comparison plot base, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "Decoded states for state-dependent level HMM by number of states. Lines indicate estimated state means."}
 plot_comp_base
 ```
 
-```{r comparison plot short, out.width = "100%", fig.width = 8, fig.height = 2.5, fig.cap = "Decoded states for state-dependent level HMM (short dataset) by number of states. Lines indicate estimated state means."}
+```{r comparison plot short, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "Decoded states for state-dependent level HMM (short dataset) by number of states. Lines indicate estimated state means."}
 plot_comp_short
 ```
 
-```{r comparison plot trend, out.width = "100%", fig.width = 8, fig.height = 4, fig.cap = "Decoded states for state-dependent linear trend HMM by number of states. Lines indicate estimated state trend lines."}
+```{r comparison plot trend, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "Decoded states for state-dependent linear trend HMM by number of states. Lines indicate estimated state trend lines."}
 plot_comp_trend
 ```
 

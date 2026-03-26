@@ -248,12 +248,16 @@ decoding_table <- mod_selected %>%
   reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm$y, .by = c(iter, n))
 
 decoding_table %>%
-  ggplot(aes(x = t, y = y)) +
-  geom_line(aes(y = state), alpha = 0.3) +
+  select(n, t, y, state) %>%
+  mutate(state_clas = state) %>%
+  pivot_longer(c(y, state), names_to = "var", values_to = "val") %>%
+  ggplot(aes(x = t, y = val)) +
   geom_line(alpha = 0.3) +
-  geom_point(aes(color = factor(state)), size = 0.5, alpha = 0.7) +
-  facet_wrap(~ n) +
-  guides(color=guide_legend(override.aes=list(size=8), title = "State"))
+  geom_point(aes(color = factor(state_clas)), alpha = 0.7, size = 1.5) +
+  facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
+  scale_color_viridis_d() +
+  labs(y = NULL)
 
 # Consequence of only modelling a level: states are splitting up the increasing trend
 
@@ -299,12 +303,16 @@ decoding_table_short <- mod_selected_short %>%
   reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm_short$y, .by = c(iter, n))
 
 decoding_table_short %>%
-  ggplot(aes(x = t, y = y)) +
-  geom_line(aes(y = state), alpha = 0.3) +
+  select(n, t, y, state) %>%
+  mutate(state_clas = state) %>%
+  pivot_longer(c(y, state), names_to = "var", values_to = "val") %>%
+  ggplot(aes(x = t, y = val)) +
   geom_line(alpha = 0.3) +
-  geom_point(aes(color = factor(state)), size = 0.5, alpha = 0.7) +
-  facet_wrap(~ n) +
-  guides(color=guide_legend(override.aes=list(size=8), title = "State"))
+  geom_point(aes(color = factor(state_clas)), alpha = 0.7, size = 1.5) +
+  facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
+  scale_color_viridis_d() +
+  labs(y = NULL)
 
 # Consequence of only modelling a level: states are splitting up the increasing trend
 
@@ -330,7 +338,7 @@ comparison_table_trend %>%
   geom_line() +
   facet_wrap(~ indicator)
 
-# More interesting, BIC bottoms out at 5
+# BIC bottoms out at 5
 
 # Decoding
 
@@ -344,12 +352,16 @@ decoding_table_trend <- mod_selected_trend %>%
   reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm$y, .by = c(iter, n))
 
 decoding_table_trend %>%
-  ggplot(aes(x = t, y = y)) +
-  geom_line(aes(y = state), alpha = 0.3) +
+  select(n, t, y, state) %>%
+  mutate(state_clas = state) %>%
+  pivot_longer(c(y, state), names_to = "var", values_to = "val") %>%
+  ggplot(aes(x = t, y = val)) +
   geom_line(alpha = 0.3) +
-  geom_point(aes(color = factor(state)), size = 0.5, alpha = 0.7) +
-  facet_wrap(~ n) +
-  guides(color=guide_legend(override.aes=list(size=8), title = "State"))
+  geom_point(aes(color = factor(state_clas)), alpha = 0.7, size = 1.5) +
+  facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
+  scale_color_viridis_d() +
+  labs(y = NULL)
 
 decoding_table_trend %>%
   count(n, state, name = "count") %>%

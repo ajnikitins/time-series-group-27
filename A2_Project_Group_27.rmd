@@ -6,7 +6,10 @@ output:
   pdf_document:
     latex_engine: xelatex
     fig_caption: true
-    extra_dependencies: float
+    extra_dependencies:
+      - float
+      - subfig
+    dev: cairo_pdf
   html_document:
     df_print: paged
 fontsize: 10pt
@@ -25,9 +28,9 @@ library(stargazer)
 library(ggplot2)
 library(forecast)
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
+knitr::opts_chunk$set(dev = "cairo_pdf", echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
 
-set_theme(theme_classic())
+set_theme(theme_classic(base_size = 10))
 update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
 
 ```
@@ -40,164 +43,35 @@ monthly_vector <- as.numeric(t(monthly_matrix))
 gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
 gistemp_stl <- stl(gistemp_ts, s.window = "periodic")
 gistemp_adj <- seasadj(gistemp_stl)
-```
-### Choice of a Hidden Markov Model
-
-In the context of GISTEMP temperature data, the dynamics are likely non-stationary, with possible structural changes such as periods of stable temperatures followed by phases of accelerated warming. Standard time series models may fail to capture these features, whereas Hidden Markov Models allow the data to depend on an underlying latent state that can switch over time, making them well suited to identify such regime changes.
-
-###State-dependent level
-
-We first consider Gaussian Hidden Markov Models with state-dependent means and variances. To assess the appropriate number of latent regimes, we estimate both a 2-state and a 3-state specification, and compare them using log-likelihood, AIC and BIC.
-
-```{r hmm_level}
-library(depmixS4)
-library(tidyr)
-library(dplyr)
-library(ggplot2)
 
 data_hmm <- data.frame(
   time_index = as.numeric(time(gistemp_adj)),
   y = as.numeric(gistemp_adj)
 )
-set.seed(555)
-#2-state Gaussian HMM
-mod_hmm_2 <- depmix(y ~ 1, data = data_hmm, nstates = 2)
-fit_hmm_2 <- fit(mod_hmm_2)
-
-#3-state Gaussian HMM
-mod_hmm_3 <- depmix(y ~ 1, data = data_hmm, nstates = 3)
-fit_hmm_3 <- fit(mod_hmm_3)
-
-comparison_table <- data.frame(
-  Model = c("2-state HMM", "3-state HMM"),
-  logLik = c(logLik(fit_hmm_2), logLik(fit_hmm_3)),
-  AIC = c(AIC(fit_hmm_2), AIC(fit_hmm_3)),
-  BIC = c(BIC(fit_hmm_2), BIC(fit_hmm_3))
-)
-
-comparison_table
-summary(fit_hmm_2)
-summary(fit_hmm_3)
-```
-The 3-state model provides a substantially better fit, with a higher log-likelihood and lower AIC and BIC than the 2-state model. This indicates that allowing for an additional regime improves the representation of the temperature dynamics.
-
-Indeed, while the 2-state model captures a simple contrast between low and high temperature levels, the 3-state model identifies a more nuanced structure, distinguishing between low, intermediate and high regimes. This appears more consistent with the gradual evolution of climate patterns.
-
-Therefore, the 3-state model is preferred as it improves the fit. However, its validity should be further assessed by examining the stability and interpretability of the decoded regimes, to rule out potential overfitting.
-
-
-
-
-
-
-```{r decoding}
-states_3 <- posterior(fit_hmm_3)
-
-data_hmm$state_3 <- factor(states_3$state)
-
-ggplot(data_hmm, aes(x = time_index, y = y)) +
-  geom_line(color = "black", linewidth = 0.35) +
-  geom_point(aes(color = state_3), size = 0.5, alpha = 0.7) +
-  labs(
-    title = "Decoded regimes from the 3-state HMM",
-    x = "Year",
-    y = "Temperature anomaly",
-    color = "Regime"
-  ) +
-  theme_minimal()
-```
-The decoded regimes appear stable and clearly interpretable over time. Transitions between states are relatively infrequent and follow a coherent long-term pattern, suggesting that the model captures meaningful structural changes rather than overfitting.
-
-```{r}
-
-# data_hmm_new <- data_hmm[data_hmm$time_index < 1976, ]
-
-
-# set.seed(555)
-# nmod_1 <- depmix(y ~ 1, data = data_hmm, nstates = 2)
-# f_nmod_1 <- fit(nmod_1)
-# est_States_1 <- posterior(f_nmod_1)
-
-# nmod_2 <- depmix(y ~ 1, data = data_hmm, nstates = 3)
-# f_nmod_2 <- fit(nmod_2)
-# est_States_2 <- posterior(f_nmod_2)
-
-# nmod_3 <- depmix(y ~ 1, data = data_hmm, nstates = 4)
-# f_nmod_3 <- fit(nmod_3)
-# est_States_3 <- posterior(f_nmod_3)
-
-# comparison_table <- data.frame(
-#   Model = c("2-state HMM", "3-state HMM", "test"),
-#   logLik = c(logLik(f_nmod_1), logLik(f_nmod_2), logLik(f_nmod_3)),
-#   AIC = c(AIC(f_nmod_1), AIC(f_nmod_2), AIC(f_nmod_3)),
-#   BIC = c(BIC(f_nmod_1), BIC(f_nmod_2), BIC(f_nmod_3))
-# )
-
-# f_nmod_1@response[[1]][[1]]@parameters$coefficients
-
-# # computing est_mean trajectory for subsample model 1 (2 states)
-
-# testy <- lapply(1:2, function(i) {
-#   lapply(f_nmod_1@response, function(resp) {
-#     resp[[1]]@parameters$coefficients
-#   })
-# })
-
-# testy
-
-
-# sapply(1:3, function(i) {
-#   f_nmod_2@response[[i]][[1]]@parameters$coefficients
-# })
-
-
-# sapply(1:4, function(i) {
-#   f_nmod_3@response[[i]][[1]]@parameters$coefficients
-# })
-
-
-
-
-# # computing est_mean trajectory for subsample model 2 (3 states)
-# est_mean_nmod2_state1 <- f_nmod_2@response[[1]][[1]]@parameters$coefficients
-# est_mean_nmod2_state2 <- f_nmod_2@response[[2]][[1]]@parameters$coefficients
-# est_mean_nmod2_state3 <- f_nmod_2@response[[3]][[1]]@parameters$coefficients
-
-# est_mean_trajectory_nmod2 <- rep(est_mean_nmod2_state1, times = length(data_hmm_new$y))
-# est_mean_trajectory_nmod2[est_States_2[,1] == 2] = est_mean_nmod2_state2
-# est_mean_trajectory_nmod2[est_States_2[,1] == 3] = est_mean_nmod2_state3
-
-
-# # two
-# vis <- tibble(
-#   time_index = abs(data_hmm_new$time_index),
-#   estimated_mean = est_mean_trajectory_nmod2,
-#   sample_trajectory = data_hmm_new$y
-# ) %>%
-#   tidyr::pivot_longer(
-#     cols = c(estimated_mean, sample_trajectory),
-#     names_to = "variable",
-#     values_to = "Value"
-#   )
-
-# ggplot(vis, aes(x = time_index, y = Value)) +
-#   geom_line() +
-#   facet_wrap(~ variable, scales = "free", ncol = 1)
-
-
 ```
 
-```{r multi-state fit}
+# Choice of a Hidden Markov Model
 
-fit_models <- \(data, max_states, reps, trend = FALSE, seed = 555) {
+In the context of GISTEMP temperature data, the dynamics are likely non-stationary, with possible structural changes such as periods of stable temperatures followed by phases of accelerated warming. Standard time series models may fail to capture these features, whereas Hidden Markov Models allow the data to depend on an underlying latent state that can switch over time, making them well suited to identify such regime changes.
+
+# State-dependent level
+
+We first consider Gaussian Hidden Markov Models with state-dependent means and variances. To assess the appropriate number of latent regimes, we estimate both a 2-state and a 3-state specification, and compare them using log-likelihood, AIC and BIC.
+
+# State-dependent linear trend
+
+# Discussion
+
+```{r multi-state base, results = FALSE, fig.show = "hide"}
+fit_models <- \(data, fit_var = "y", max_states, reps, trend = FALSE, seed = 555) {
   set.seed(seed)
 
   models <- tibble()
 
   if (trend) {
-    formula <- y ~ time_index
+    formula <- as.formula(paste(fit_var, "~ time_index"))
   } else {
-    formula <- y ~ 1
+    formula <- as.formula(paste(fit_var, "~ 1"))
   }
 
   for (n in 2:max_states) {
@@ -219,7 +93,7 @@ fit_models <- \(data, max_states, reps, trend = FALSE, seed = 555) {
       ))
     ) %>%
     ungroup() %>%
-    slice_max(mod_logLik, n = 1)
+    slice_max(mod_logLik, n = 1, by = n)
 
   models
 }
@@ -228,36 +102,47 @@ fit_models <- \(data, max_states, reps, trend = FALSE, seed = 555) {
 # saveRDS(comparison_table, "work/models.RDS")
 comparison_table <- readRDS("work/models.RDS")
 
-comparison_table %>%
+plot_ic_base <- comparison_table %>%
   pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
-  ggplot(aes(x = n, y = val)) +
+  ggplot(aes(x = n, y = val, color = indicator)) +
   geom_line() +
-  facet_wrap(~ indicator)
+  labs(y = NULL, x = "State") +
+  theme(legend.position = "top", legend.direction = "horizontal")
+
+plot_ic_base
 
 # BIC decreases until 6 states
-```
 
-```{r multi-state decoding}
 # Check state interpretability and stability
 
 ## Select max likelihood model for each state choice
 mod_selected <- comparison_table %>%
   filter(between(n, 3, 6))
 
-decoding_table <- mod_selected %>%
-  reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm$y, .by = c(iter, n))
+response_table <- mod_selected %>%
+  rowwise() %>%
+  reframe(n = n, state_clas = 1:n, var = "y", as_tibble(matrix(getpars(mod, which = "pars")[-(1:((n + 1)*n))], ncol = 2, byrow = TRUE, dimnames = list(rep(NA, n), c("intercept", "sd"))))) %>%
+  mutate(ord = rank(intercept), .by = n)
 
-decoding_table %>%
+decoding_table <- mod_selected %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = data_hmm$time_index, y = data_hmm$y, .by = c(iter, n)) %>%
+  mutate(state = response_table[response_table$n == cur_group()$n,]$ord[state], .by = n)
+
+plot_comp_base <- decoding_table %>%
   select(n, t, y, state) %>%
   mutate(state_clas = state) %>%
-  pivot_longer(c(y, state), names_to = "var", values_to = "val") %>%
+  pivot_longer(c(y), names_to = "var", values_to = "val") %>%
   ggplot(aes(x = t, y = val)) +
-  geom_line(alpha = 0.3) +
-  geom_point(aes(color = factor(state_clas)), alpha = 0.7, size = 1.5) +
-  facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
-  guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
+  # geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state_clas)), alpha = 0.55, size = 1.3, pch=16) +
+  geom_hline(data = response_table, aes(yintercept = intercept, group = factor(ord)), linewidth = 0.83) +
+  geom_hline(data = response_table, aes(yintercept = intercept, color = factor(ord)), linewidth = 0.8) +
+  facet_wrap(~ n, labeller = as_labeller(\(n) paste(n, "states"))) +
+  guides(color=guide_legend(override.aes=list(size=5), title = "State")) +
   scale_color_viridis_d() +
-  labs(y = NULL)
+  labs(y = "Temperature anomalies (°C)", x = NULL)
+
+plot_comp_base
 
 # Consequence of only modelling a level: states are splitting up the increasing trend
 
@@ -274,7 +159,7 @@ walk(mod_selected$mod, summary)
 # The problem is that we only have a state-dependent level, we are not taking into account the changing trend.
 ```
 
-```{r multi-state short}
+```{r multi-state short, results = FALSE, fig.show = "hide"}
 # Repeated for the shorter sample
 data_hmm_short <- data_hmm[data_hmm$time_index < 1976, ]
 
@@ -283,11 +168,14 @@ data_hmm_short <- data_hmm[data_hmm$time_index < 1976, ]
 # saveRDS(comparison_table_short, "work/models_short.RDS")
 comparison_table_short <- readRDS("work/models_short.RDS")
 
-comparison_table_short %>%
+plot_ic_short <- comparison_table_short %>%
   pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
-  ggplot(aes(x = n, y = val)) +
+  ggplot(aes(x = n, y = val, color = indicator)) +
   geom_line() +
-  facet_wrap(~ indicator)
+  labs(y = NULL, x = "State") +
+  theme(legend.position = "top", legend.direction = "horizontal")
+
+plot_ic_short
 
 # Improvement plateaus already at 3,4 states
 
@@ -299,20 +187,30 @@ comparison_table_short %>%
 mod_selected_short <- comparison_table_short %>%
   filter(between(n, 2, 4))
 
-decoding_table_short <- mod_selected_short %>%
-  reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm_short$y, .by = c(iter, n))
+response_table_short <- mod_selected_short %>%
+  rowwise() %>%
+  reframe(n = n, state_clas = 1:n, var = "y", as_tibble(matrix(getpars(mod, which = "pars")[-(1:((n + 1)*n))], ncol = 2, byrow = TRUE, dimnames = list(rep(NA, n), c("intercept", "sd"))))) %>%
+  mutate(ord = rank(intercept), .by = n)
 
-decoding_table_short %>%
+decoding_table_short <- mod_selected_short %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = data_hmm_short$time_index, y = data_hmm_short$y, .by = c(iter, n)) %>%
+  mutate(state = response_table_short[response_table_short$n == cur_group()$n,]$ord[state], .by = n)
+
+plot_comp_short <- decoding_table_short %>%
   select(n, t, y, state) %>%
   mutate(state_clas = state) %>%
-  pivot_longer(c(y, state), names_to = "var", values_to = "val") %>%
+  pivot_longer(c(y), names_to = "var", values_to = "val") %>%
   ggplot(aes(x = t, y = val)) +
-  geom_line(alpha = 0.3) +
-  geom_point(aes(color = factor(state_clas)), alpha = 0.7, size = 1.5) +
-  facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
-  guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
+  # geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state_clas)), alpha = 0.55, size = 1.3, pch=16) +
+  geom_hline(data = response_table_short, aes(yintercept = intercept, group = factor(ord)), linewidth = 0.83) +
+  geom_hline(data = response_table_short, aes(yintercept = intercept, color = factor(ord)), linewidth = 0.8) +
+  facet_wrap(~ n, labeller = as_labeller(\(n) paste(n, "states"))) +
+  guides(color=guide_legend(override.aes=list(size=5), title = "State")) +
   scale_color_viridis_d() +
-  labs(y = NULL)
+  labs(y = "Temperature anomalies (°C)", x = NULL)
+
+plot_comp_short
 
 # Consequence of only modelling a level: states are splitting up the increasing trend
 
@@ -326,13 +224,105 @@ decoding_table_short %>%
 walk(mod_selected_short$mod, summary)
 ```
 
-```{r multi-sample trend}
+```{r multi-sample trend, results = FALSE, fig.show = "hide"}
 # Fit
 # comparison_table_trend <- fit_models(data_hmm, max_states = 8, reps = 30, trend = TRUE)
 # saveRDS(comparison_table_trend, "work/models_trend.RDS")
 comparison_table_trend <- readRDS("work/models_trend.RDS")
 
-comparison_table_trend %>%
+plot_ic_trend <- comparison_table_trend %>%
+  pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
+  ggplot(aes(x = n, y = val, color = indicator)) +
+  geom_line() +
+  labs(y = NULL, x = "State") +
+  theme(legend.position = "top", legend.direction = "horizontal")
+
+plot_ic_trend
+
+# BIC bottoms out at 5
+
+# Decoding
+
+# Check state interpretability and stability
+
+## Select max likelihood model for each state choice
+mod_selected_trend <- comparison_table_trend %>%
+  filter(between(n, 2, 5))
+
+response_table_trend <- mod_selected_trend %>%
+  rowwise() %>%
+  reframe(n = n, state_clas = 1:n, var = "y", as_tibble(matrix(getpars(mod, which = "pars")[-(1:((n + 1)*n))], ncol = 3, byrow = TRUE, dimnames = list(rep(NA, n), c("intercept", "slope", "sd"))))) %>%
+  mutate(ord = rank(slope), .by = n)
+
+decoding_table_trend <- mod_selected_trend %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = data_hmm$time_index, y = data_hmm$y, .by = c(iter, n)) %>%
+  mutate(state = response_table_trend[response_table_trend$n == cur_group()$n,]$ord[state], .by = n)
+
+plot_comp_trend <- decoding_table_trend %>%
+  select(n, t, y, state) %>%
+  mutate(state_clas = state) %>%
+  pivot_longer(c(y), names_to = "var", values_to = "val") %>%
+  ggplot(aes(x = t, y = val)) +
+  # geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state_clas)), alpha = 0.55, size = 1.3, pch=16) +
+  geom_abline(data = response_table_trend, aes(intercept = intercept, slope = slope, group = factor(ord)), linewidth = 0.83) +
+  geom_abline(data = response_table_trend, aes(intercept = intercept, slope = slope, color = factor(ord)), linewidth = 0.8) +
+  facet_wrap(~ n, labeller = as_labeller(\(n) paste(n, "states"))) +
+  guides(color=guide_legend(override.aes=list(size=5), title = "State")) +
+  scale_color_viridis_d() +
+  labs(y = "Temperature anomalies (°C)", x = NULL)
+
+plot_comp_trend
+
+decoding_table_trend %>%
+  count(n, state, name = "count") %>%
+  mutate(prop = count / sum(count) * 100, .by = n) %>%
+  ggplot(aes(x = state, y = prop)) +
+  geom_col() +
+  facet_wrap(~ n)
+
+walk(mod_selected_trend$mod, summary)
+```
+
+```{r ic plots, out.width = "33%", fig.width = 3, fig.height = 3, fig.cap = "HMM specification information criteria by state.", fig.subcap = c("State-dependent level", "State-dependent level (short dataset)", "State-dependent linear trend")}
+plot_ic_base
+plot_ic_short
+plot_ic_trend
+```
+
+```{r comparison plot base, out.width = "100%", fig.width = 8, fig.height = 4, fig.cap = "Decoded states for state-dependent level HMM by number of states. Lines indicate estimated state means."}
+plot_comp_base
+```
+
+```{r comparison plot short, out.width = "100%", fig.width = 8, fig.height = 2.5, fig.cap = "Decoded states for state-dependent level HMM (short dataset) by number of states. Lines indicate estimated state means."}
+plot_comp_short
+```
+
+```{r comparison plot trend, out.width = "100%", fig.width = 8, fig.height = 4, fig.cap = "Decoded states for state-dependent linear trend HMM by number of states. Lines indicate estimated state trend lines."}
+plot_comp_trend
+```
+
+
+<!-- ```{r multi-sample detrend, output = FALSE}
+data_hmm_stl <- stl(ts(data_hmm$y, frequency = 12), s.window = "periodic")
+
+plot(data_hmm_stl$time.series[, "trend"])
+
+data_hmm_detrend <- data_hmm %>%
+  arrange(time_index) %>%
+  mutate(y_det = y - data_hmm_stl$time.series[, "trend"])
+
+data_hmm_detrend %>%
+  ggplot(aes(x = time_index, y = y_det)) +
+  geom_point() +
+  geom_hline(yintercept = 0)
+
+# Fit
+# comparison_table_detrend <- fit_models(data_hmm_detrend, fit_var = "y_det", max_states = 8, reps = 3, trend = FALSE)
+# saveRDS(comparison_table_detrend, "work/models_detrend.RDS")
+comparison_table_detrend <- readRDS("work/models_detrend.RDS")
+
+comparison_table_detrend %>%
   pivot_longer(c(mod_logLik, mod_BIC, mod_AIC), names_to = "indicator", values_to = "val", names_prefix = "mod_") %>%
   ggplot(aes(x = n, y = val)) +
   geom_line() +
@@ -345,13 +335,30 @@ comparison_table_trend %>%
 # Check state interpretability and stability
 
 ## Select max likelihood model for each state choice
-mod_selected_trend <- comparison_table_trend %>%
+mod_selected_detrend <- comparison_table_detrend %>%
   filter(between(n, 2, 6))
 
-decoding_table_trend <- mod_selected_trend %>%
-  reframe(posterior(mod[[1]], type = "viterbi"), t = 1:length(state), y = data_hmm$y, .by = c(iter, n))
+decoding_table_detrend <- mod_selected_detrend %>%
+  reframe(posterior(mod[[1]], type = "viterbi"), t = data_hmm_detrend$time_index, y = data_hmm_detrend$y, y_det = data_hmm_detrend$y_det, .by = n)
 
-decoding_table_trend %>%
+response_table_detrend <- mod_selected_detrend %>%
+  rowwise() %>%
+  reframe(n = n, state_clas = 1:n, var = "y_det", as_tibble(matrix(getpars(mod, which = "pars")[-(1:((n + 1)*n))], ncol = 2, byrow = TRUE, dimnames = list(rep(NA, n), c("intercept", "sd")))))
+
+decoding_table_detrend %>%
+  select(n, t, y, y_det, state) %>%
+  mutate(state_clas = state) %>%
+  pivot_longer(c(y, y_det, state), names_to = "var", values_to = "val") %>%
+  ggplot(aes(x = t, y = val)) +
+  geom_line(alpha = 0.3) +
+  geom_point(aes(color = factor(state_clas)), alpha = 0.7, size = 1.5) +
+  facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
+  guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
+  scale_color_viridis_d() +
+  labs(y = NULL) +
+  geom_hline(data = response_table_detrend, aes(yintercept = intercept, color = factor(state_clas)))
+
+decoding_table_detrend %>%
   select(n, t, y, state) %>%
   mutate(state_clas = state) %>%
   pivot_longer(c(y, state), names_to = "var", values_to = "val") %>%
@@ -361,14 +368,15 @@ decoding_table_trend %>%
   facet_grid(rows = vars(var), cols = vars(n), scales = "free_y") +
   guides(color=guide_legend(override.aes=list(size=8), title = "State")) +
   scale_color_viridis_d() +
-  labs(y = NULL)
+  labs(y = NULL) +
+  geom_hline(data = response_table, aes(yintercept = intercept, color = factor(state_clas)))
 
-decoding_table_trend %>%
+decoding_table_detrend %>%
   count(n, state, name = "count") %>%
   mutate(prop = count / sum(count) * 100, .by = n) %>%
   ggplot(aes(x = state, y = prop)) +
   geom_col() +
   facet_wrap(~ n)
 
-walk(mod_selected_trend$mod, summary)
-```
+walk(mod_selected_detrend$mod, summary)
+``` -->

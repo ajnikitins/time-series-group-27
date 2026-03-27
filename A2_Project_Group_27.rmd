@@ -25,10 +25,10 @@ library(depmixS4)
 library(tidyverse)
 library(gridExtra)
 library(stargazer)
-library(ggplot2)
 library(forecast)
+library(kableExtra)
 
-knitr::opts_chunk$set(dev = "cairo_pdf", echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "H", out.extra = "")
+knitr::opts_chunk$set(dev = "cairo_pdf", echo = FALSE, warning = FALSE, message = FALSE, fig.align = "center", fig.pos = "thb", out.extra = "")
 
 set_theme(theme_classic(base_size = 10))
 update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
@@ -52,15 +52,7 @@ data_hmm <- data.frame(
 
 # Choice of a Hidden Markov Model
 
-In the context of GISTEMP temperature data, the dynamics are likely non-stationary, with possible structural changes such as periods of stable temperatures followed by phases of accelerated warming. Standard time series models may fail to capture these features, whereas Hidden Markov Models allow the data to depend on an underlying latent state that can switch over time, making them well suited to identify such regime changes.
-
-# State-dependent level
-
-We first consider Gaussian Hidden Markov Models with state-dependent means and variances. To assess the appropriate number of latent regimes, we estimate both a 2-state and a 3-state specification, and compare them using log-likelihood, AIC and BIC.
-
-# State-dependent linear trend
-
-# Discussion
+In the context of GISTEMP temperature data, the dynamics are likely non-stationary, with possible structural changes such as periods of stable temperatures followed by phases of accelerated warming. Standard time series models may fail to capture these features, whereas Hidden Markov Models allow the data to depend on an underlying latent state that can switch over time, making them more suited to identify such regime changes. We adjust the series for seasonality via an STL decomposition with a monthly periodic seasonality window.
 
 ```{r multi-state base, results = FALSE, fig.show = "hide"}
 fit_models <- \(data, fit_var = "y", max_states, reps, trend = FALSE, seed = 555) {
@@ -77,6 +69,7 @@ fit_models <- \(data, fit_var = "y", max_states, reps, trend = FALSE, seed = 555
   for (n in 2:max_states) {
     models_iter <- tibble(iter = 1:reps, n = n) %>%
       rowwise() %>%
+      mutate(mod = list(depmix(formula, data = data, nstates = n))) %>%
       mutate(mod = list(fit(depmix(formula, data = data, nstates = n))))
 
     models <- bind_rows(models, models_iter)
@@ -255,6 +248,7 @@ response_table_trend <- mod_selected_trend %>%
   mutate(ord = rank(slope), .by = n)
 
 decoding_table_trend <- mod_selected_trend %>%
+  # reframe(state = posterior(mod[[1]], type = "global"), t = data_hmm$time_index, y = data_hmm$y, .by = c(iter, n)) %>%
   reframe(posterior(mod[[1]], type = "viterbi"), t = data_hmm$time_index, y = data_hmm$y, .by = c(iter, n)) %>%
   mutate(state = response_table_trend[response_table_trend$n == cur_group()$n,]$ord[state], .by = n)
 
@@ -284,33 +278,80 @@ decoding_table_trend %>%
 walk(mod_selected_trend$mod, summary)
 ```
 
-```{r ic plots, out.width = "33%", fig.width = 3, fig.height = 3, fig.cap = "HMM specification information criteria by state.", fig.subcap = c("State-dependent level", "State-dependent level (short dataset)", "State-dependent linear trend")}
+# State-dependent level
+
+We first consider Gaussian Hidden Markov Models with state-dependent means and variances: $Y_t \mid S_t = j \sim N(\mu_j, \sigma^2_j)$.
+To assess the appropriate number of latent regimes, we estimate models with 2 to 8 states and compare them using log-likelihood, AIC and BIC (Figure \ref{fig:ic_a}).
+Models with 2–3 states perform poorly, while fit improves from 4 states onward. BIC and log-likelihood both plateau around 5–6 states.
+
+We therefore focus on models with 4–6 states and decode them (Figure \ref{fig:comp_base}). We do so to consider for each model the quality of their state transitions, their interpretability, and whether they suggest overfitting.
+
+In the 4-state model, states appear to switch very rapidly between the bottom two regimes, indicating that their separation is quite muddled. In the 5-state model, this appears to be less of an issue, and it performs better in the metrics measured in Figure \ref{fig:ic_a} and Table \ref{tbl:stats}. The 6-state model appears to simply create an extra regime at the higher end of the temperature anomalies scale, which does not improve the interpretability of the model, while increasing the complexity. Therefore, in order to preserve quality of the state transitions, have good interpretability, and limit overfitting, the 5-state model is our preferred version for this model.
+
+```{r ic plots, out.width = "33%", fig.width = 3, fig.height = 3, fig.cap = "\\label{fig:ic}HMM specification information criteria by state.", fig.subcap = c("\\label{fig:ic_a}State-dependent level", "\\label{fig:ic_b}State-dependent level (short dataset)", "\\label{fig:ic_c}State-dependent linear trend")}
 plot_ic_base
 plot_ic_short
 plot_ic_trend
 ```
 
-```{r comparison plot base, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "Decoded states for state-dependent level HMM by number of states. Lines indicate estimated state means."}
+```{r comparison plot base, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "\\label{fig:comp_base}Decoded states for state-dependent level HMM by number of states. Lines indicate estimated state means."}
 plot_comp_base
 ```
 
-```{r comparison plot short, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "Decoded states for state-dependent level HMM (short dataset) by number of states. Lines indicate estimated state means."}
+## Subsample up to 1975
+
+Repeating the analysis on the dataset not containing the recent acceleration, we have again estimated models with 2 to 8 states and compared them using log-likelihood, AIC and BIC (Figure \ref{fig:ic_b}). The BIC showed a positive slope when surpassing a 4-state model and the log-likelihood plateaued post the 3 or 4-state model, thus we decoded the 2, 3, and 4-state models in order to properly compare them based on their interpretability (Figure \ref{fig:comp_short}). The 4-state model does not appear to be intuitive and the 2 and 3-state models are comparable, so we prefer the 3-state model based on its better performance in our metrics shown in Figure \ref{fig:ic_b} and Table \ref{tbl:stats}.
+
+In the full sample, states primarily track the upward trend rather than distinct regimes, effectively segmenting time rather than capturing structural differences. In contrast, the shorter sample is closer to stationarity, and state means align more clearly with the data. This suggests that HMMs are more appropriate in the absence of recent acceleration.
+
+```{r comparison plot short, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "\\label{fig:comp_short}Decoded states for state-dependent level HMM (short dataset) by number of states. Lines indicate estimated state means."}
 plot_comp_short
 ```
 
-```{r comparison plot trend, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "Decoded states for state-dependent linear trend HMM by number of states. Lines indicate estimated state trend lines."}
+# State-dependent linear trend
+
+Assessing the optimal number of states for the state-dependent linear trend model ($Y_t \mid S_t = j \sim N(\mu_j +\beta_j t, \sigma^2_j)$), we use the same approach as we did previously, shown in Figures \ref{fig:ic_c} and \ref{fig:comp_trend}. The slope and the intercept are pictured as well, showing near-parallel trend lines, all essentially capturing the same global warming trend but from different levels. The states are largely distinguished by intercept and the states switch very rapidly, thus there is no clear temporal structure, suggesting that the model is not finding stable climate regimes. That is what is at the core of the issue between the state-dependent linear trend model and the GISTEMP dataset / global warming, the data has one dominant global trend (long-run warming), while this model is trying to approximate multiple different trends from the data. Our result shows that we have multiple states with their own linear trends, which all end up approximating the same line from different offsets. So, even though the state-dependent linear trend model performed better according to our metrics in Figure \ref{fig:ic} and Table \ref{tbl:stats}, in comparing the two models, the state-dependent level model has better interpretability, making it the more useful model for us.
+
+```{r comparison plot trend, out.width = "100%", fig.width = 8, fig.height = 3, fig.cap = "\\label{fig:comp_trend}Decoded states for state-dependent linear trend HMM by number of states. Lines indicate estimated state trend lines."}
 plot_comp_trend
+```
+
+#### Discussion
+
+The trend which this dataset is capturing is a continuous, gradual process. In climate change there is no sharp moment where the climate switches from one regime to another, even though we do see that there is an upward evolution in the anomalies. HMMs assume the system occupies one of the discrete, well-separated states, but forcing a discrete model onto a smoothly evolving trend creates rapid switching and fragmentation, as is visible in Figures \ref{fig:comp_base} through \ref{fig:comp_trend}. This rapid, unstable state-switching has no interpretation in climate terms. Furthermore, the acceleration post-1980 shows a continuous growth (gradual drift), which cannot be represented by discrete states. Separating different moments of this same gradual drift solely based on the temperature anomalies value has no tangible meaning regarding what the states represent. At that point we are clearly not representing latent regimes but simply categorizing the values of temperature anomalies into different boxes. Lastly, a key limitation of HMMs is that they assume conditional independence: once you know today’s state, today’s temperature does not depend on the temperature of the previous days. This is also illogical when considering temperature data, which shows autocorrelation, effectively making the HMM assumption not true. Thus, a discrete-state model is not appropriate for a gradually evolving climate trend.
+
+```{r comp_table, tab.cap="\\label{tbl:stats}Selected HMM model statistics."}
+bind_rows(
+  mutate(mod_selected, section = "Level"),
+  mutate(mod_selected_short, section = "Level (short)"),
+  mutate(mod_selected_trend, section = "Trend")
+) %>%
+  mutate(
+    avg_prob = mean(getpars(mod[[1]])[seq(from = n + 1, to = n * (n + 1), by = n + 1)]) * 100,
+    avg_dur = 100 / (100 - avg_prob),
+    .by = c(section, n)
+  ) %>%
+  select(Type = section, States = n, `Log-likelihood` = mod_logLik, AIC = mod_AIC, BIC = mod_BIC, `Avg self-trans. prob. (%)` = avg_prob, `Avg state duration` = avg_dur) %>%
+  knitr::kable(
+    format = "latex",
+    align = "l",
+    booktabs = TRUE,
+    linesep = "",
+    digits = 1
+    )
 ```
 
 
 <!-- ```{r multi-sample detrend, output = FALSE}
-data_hmm_stl <- stl(ts(data_hmm$y, frequency = 12), s.window = "periodic")
+data_hmm_stl <- stl(ts(data_hmm$y, frequency = 12), s.window = "periodic", t.window = 144*8)
+# data_hmm_stl <- stl(ts(data_hmm$y, frequency = 12), s.window = "periodic")
 
 plot(data_hmm_stl$time.series[, "trend"])
 
 data_hmm_detrend <- data_hmm %>%
   arrange(time_index) %>%
   mutate(y_det = y - data_hmm_stl$time.series[, "trend"])
+  # mutate(y_det = y - lag(y, 12))
 
 data_hmm_detrend %>%
   ggplot(aes(x = time_index, y = y_det)) +
@@ -318,8 +359,8 @@ data_hmm_detrend %>%
   geom_hline(yintercept = 0)
 
 # Fit
-# comparison_table_detrend <- fit_models(data_hmm_detrend, fit_var = "y_det", max_states = 8, reps = 3, trend = FALSE)
-# saveRDS(comparison_table_detrend, "work/models_detrend.RDS")
+comparison_table_detrend <- fit_models(data_hmm_detrend, fit_var = "y_det", max_states = 8, reps = 3, trend = FALSE)
+saveRDS(comparison_table_detrend, "work/models_detrend.RDS")
 comparison_table_detrend <- readRDS("work/models_detrend.RDS")
 
 comparison_table_detrend %>%

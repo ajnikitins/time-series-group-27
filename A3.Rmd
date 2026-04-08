@@ -1,7 +1,7 @@
 ---
-title: "Bocconi University - 20236 Time Series Analysis"
-subtitle: "**Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins,
-  Madelief van Weerdenburg**"
+title: "Assignment 3"
+subtitle: "Bocconi University - 20236 Time Series Analysis \\linebreak Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins,
+  Madelief van Weerdenburg"
 output:
   pdf_document:
     latex_engine: xelatex

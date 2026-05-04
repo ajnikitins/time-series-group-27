@@ -29,6 +29,15 @@ update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_
 
 ```{r Implementation}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
+monthly_matrix <- as.matrix(df[, 2:13])
+monthly_vector <- as.numeric(t(monthly_matrix))
+
+gistemp_ts_raw <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
+
+# Eliminating seasonality
+stl_decomp <- stl(gistemp_ts_raw, s.window = "periodic")
+gistemp_ts <- gistemp_ts_raw - stl_decomp$time.series[,"seasonal"]
+
 
 
 ```

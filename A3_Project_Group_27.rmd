@@ -38,7 +38,77 @@ gistemp_ts_raw <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
 stl_decomp <- stl(gistemp_ts_raw, s.window = "periodic")
 gistemp_ts <- gistemp_ts_raw - stl_decomp$time.series[,"seasonal"]
 
+```
 
+# Dynamic linear models
+
+```{r rw and llt}
 
 ```
+
+# Parameter estimation
+
+```{r params estimation}
+# builder functions
+build_rw <- function(params) {
+  dlmModPoly(order = 1, dV = params[1], dW = params[2])
+}
+build_llt <- function(params) {
+  dlmModPoly(order = 2, dV = params[1], dW = c(params[2], params[3]))
+}
+set.seed(88888)
+start_rw <- c(1,1)
+start_llt <- c(1,1,1)
+
+# ML estimation - rw
+mle_rw <- dlmMLE(gistemp_ts,
+                  parm = start_rw,
+                  build = build_rw,
+                  hessian = TRUE
+                  )
+# output - rw
+sigma2_rw <- mle_rw$par[1]
+tau2_rw <- mle_rw$par[2]
+se_rw <- sqrt(diag(solve(mle_rw$hessian)))
+
+# - llt
+mle_llt <- dlmMLE(gistemp_ts,
+       parm = start_llt,
+       build = build_llt,
+       hessian = TRUE
+       )
+
+# output - llt
+sigma2_llt <- mle_llt$par[1]
+tau2_llt <- mle_llt$par[2]
+gamma2_llt <- mle_llt$par[3]
+se_llt <- sqrt(diag(solve(mle_llt$hessian)))
+
+mle_table <- data.frame(
+  Model     = c("RW", "RW", "LLT", "LLT", "LLT"),
+  Parameter = c("sigma^2", "tau^2", "sigma^2", "tau^2", "gamma^2"),
+  MLE       = c(sigma2_rw, tau2_rw, sigma2_llt, tau2_llt, gamma2_llt),
+  SE        = c(se_rw, se_llt)
+)
+knitr::kable(mle_table, digits = 6, caption = "MLE estimates and asymptotic standard errors")
+```
+
+# Filtering and smoothing
+
+```{r}
+# note that the following are the fitted models:
+mod_rw  <- build_rw(mle_rw$par)
+mod_llt <- build_llt(mle_llt$par)
+```
+
+# Forecasting, model checking and model evaluation
+
+# Questions (Discussion)
+
+
+
+
+
+
+
 

@@ -188,6 +188,13 @@ knitr::kable(rmse_table, digits = 6, caption = "Test-set RMSE")
 
 # Interpretation
 
+# The ACFs of the standardized forecast errors show some residual autocorrelation,
+# with a few lags exceeding the approximate confidence bounds.
+# This suggests that neither model fully removes temporal dependence in the test-set forecast errors.
+
+# The QQ plots are reasonably close to linear in the middle part, but deviate in the tails.
+# Thus, the normality assumption is reasonable but imperfect, especially for more extreme errors.
+
 # Both models have effectively the same test-set RMSE (LLT is negligibly smaller RW).
 # Moreover, the variance for the estimated slope innovation is essentially zero,
 # which suggests that the data do not support a time-varying slope component.

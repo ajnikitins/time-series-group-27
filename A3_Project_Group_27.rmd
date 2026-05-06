@@ -43,7 +43,7 @@ gistemp_ts <- gistemp_ts_raw - stl_decomp$time.series[,"seasonal"]
 # Dynamic linear models
 
 ```{r rw and llt}
-
+print(1)
 ```
 
 # Parameter estimation
@@ -103,12 +103,97 @@ mod_llt <- build_llt(mle_llt$par)
 
 # Forecasting, model checking and model evaluation
 
+```{r forecasting}
+
+# Split dataset
+max_date <- max(time(gistemp_ts))
+training_date <- max_date - 20
+
+gistemp_ts_train <- window(gistemp_ts, end = training_date)
+gistemp_ts_test <- window(gistemp_ts, start = training_date + 1/frequency(gistemp_ts))
+
+# Train models
+
+set.seed(88888)
+
+# Redo builders with log-variances
+
+build_rw_train <- function(params) {
+  dlmModPoly(order = 1, dV = exp(params[1]), dW = exp(params[2]))
+}
+build_llt_train <- function(params) {
+  dlmModPoly(order = 2, dV = exp(params[1]), dW = c(exp(params[2]), exp(params[3])))
+}
+
+# ML estimation - rw
+mle_rw_train <- dlmMLE(gistemp_ts_train,
+                  parm = c(0, 0),
+                  build = build_rw_train,
+                  hessian = TRUE
+                  )
+# output - rw
+sigma2_rw_train <- exp(mle_rw_train$par[1])
+tau2_rw_train <- exp(mle_rw_train$par[2])
+
+# - llt
+mle_llt_train <- dlmMLE(gistemp_ts_train,
+       parm = c(0, 0, 0),
+       build = build_llt_train,
+       hessian = TRUE
+       )
+
+# output - llt
+sigma2_llt_train <- exp(mle_llt_train$par[1])
+tau2_llt_train <- exp(mle_llt_train$par[2])
+gamma2_llt_train <- exp(mle_llt_train$par[3])
+
+mle_table_train <- data.frame(
+  Model     = c("RW", "RW", "LLT", "LLT", "LLT"),
+  Parameter = c("sigma^2", "tau^2", "sigma^2", "tau^2", "gamma^2"),
+  MLE       = c(sigma2_rw_train, tau2_rw_train, sigma2_llt_train, tau2_llt_train, gamma2_llt_train)
+)
+knitr::kable(mle_table_train, digits = 6, caption = "MLE estimates (training sample)")
+
+# filters & forecast errors
+
+mod_rw_train  <- dlmFilter(gistemp_ts, build_rw_train(mle_rw_train$par))
+mod_llt_train <- dlmFilter(gistemp_ts, build_llt_train(mle_llt_train$par))
+
+gistemp_frcst_rw <- gistemp_ts_test - window(mod_rw_train$f, start = training_date + 1/frequency(gistemp_ts))
+gistemp_frcst_rw_std <- window(residuals(mod_rw_train, sd = FALSE), start = training_date + 1/frequency(gistemp_ts))
+
+gistemp_frcst_llt <- gistemp_ts_test - window(mod_llt_train$f, start = training_date + 1/frequency(gistemp_ts))
+gistemp_frcst_llt_std <- window(residuals(mod_llt_train, sd = FALSE), start = training_date + 1/frequency(gistemp_ts))
+
+# Model checking
+acf(gistemp_frcst_rw_std)
+acf(gistemp_frcst_llt_std)
+
+qqnorm(gistemp_frcst_rw_std)
+qqline(gistemp_frcst_rw_std)
+
+qqnorm(gistemp_frcst_llt_std)
+qqline(gistemp_frcst_llt_std)
+
+# RMSE
+rmse_rw <- sqrt(mean(gistemp_frcst_rw^2))
+rmse_llt <- sqrt(mean(gistemp_frcst_llt^2))
+
+rmse_table <- data.frame(
+  Model = c("RW", "LLT"),
+  RMSE = c(rmse_rw, rmse_llt)
+)
+
+knitr::kable(rmse_table, digits = 6, caption = "Test-set RMSE")
+
+# Interpretation
+
+# Both models have effectively the same test-set RMSE (LLT is negligibly smaller RW).
+# Moreover, the variance for the estimated slope innovation is essentially zero,
+# which suggests that the data do not support a time-varying slope component.
+# Therefore, the LLT model does not provide a meaningful improvement over the more
+# parsimonious RW model.
+
+```
+
 # Questions (Discussion)
-
-
-
-
-
-
-
-

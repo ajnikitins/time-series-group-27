@@ -118,7 +118,7 @@ ci_lower <- m_filt - z95 * rw_filt_sd
 
 t_vals <- time(m_filt)
 
-plot(gistemp_ts, type = 'l', col = "grey60", ylab = "Anomaly (Celsius)", 
+plot(gistemp_ts, type = 'n', col = "grey60", ylab = "Anomaly (Celsius)",
      xlab = "Year", main = "RW – Filtering", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
@@ -126,9 +126,15 @@ polygon(c(t_vals, rev(t_vals)),
         col = adjustcolor("orange", alpha.f = 0.7),
         border = NA)
 
-lines(gistemp_ts, col = "grey60", lwd = 1)
+points(
+  t_vals,
+  as.numeric(gistemp_ts),
+  pch = 16,
+  cex = 0.5,
+  col = adjustcolor("grey25", alpha.f = 0.5)
+)
 
-lines(m_filt, col = "seagreen", lwd = 1.5)
+lines(m_filt, col = "seagreen4", lwd = 2.2)
 
 
 ## RW - Smoothing
@@ -148,7 +154,7 @@ ci_lower_smooth <- s_smooth - z95 * smooth_sd
 
 t_vals <- time(gistemp_ts)[seq_along(s_smooth)]
 
-plot(gistemp_ts, type = "l", col = "grey60", ylab = "Anomaly (Celsius)", 
+plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
      xlab = "Year", main = "RW – Smoothing", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
@@ -156,9 +162,15 @@ polygon(c(t_vals, rev(t_vals)),
         col = adjustcolor("orange", alpha.f = 0.7),
         border = NA)
 
-lines(gistemp_ts, col = "grey60", lwd = 1)
+points(
+  t_vals,
+  as.numeric(gistemp_ts),
+  pch = 16,
+  cex = 0.5,
+  col = adjustcolor("grey25", alpha.f = 0.5)
+)
 
-lines(t_vals, s_smooth, col = "brown", lwd = 1.5)
+lines(t_vals, s_smooth, col = "brown", lwd = 2.2)
 
 
 ## LLT - Filtering
@@ -185,13 +197,17 @@ polygon(c(t_vals, rev(t_vals)),
         col = adjustcolor("orange", alpha.f = 0.4),
         border = NA)
 
-lines(gistemp_ts, col = "grey60", lwd = 1)
+points(
+  t_vals,
+  as.numeric(gistemp_ts),
+  pch = 16,
+  cex = 0.5,
+  col = adjustcolor("grey25", alpha.f = 0.5)
+)
 
 lines(t_vals, m_llt,
       col = "seagreen",
-      lwd = 2)
-
-
+      lwd = 2.2)
 
 ## LLT - Smoothing
 
@@ -205,7 +221,7 @@ smooth_sd_llt <- sqrt(sapply(S_smooth_llt, function(x) x[1, 1]))
 ci_upper_llt <- s_smooth_llt + z95 * smooth_sd_llt
 ci_lower_llt <- s_smooth_llt - z95 * smooth_sd_llt
 
-plot(gistemp_ts, type = "l", col = "grey60", ylab = "Anomaly (Celsius)", 
+plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
      xlab = "Year", main = "LLT – Smoothing", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
@@ -213,20 +229,26 @@ polygon(c(t_vals, rev(t_vals)),
         col = adjustcolor("orange", alpha.f = 0.7),
         border = NA)
 
-lines(gistemp_ts, col = "grey60", lwd = 1)
+points(
+  t_vals,
+  as.numeric(gistemp_ts),
+  pch = 16,
+  cex = 0.5,
+  col = adjustcolor("grey25", alpha.f = 0.5)
+)
 
-lines(t_vals, s_smooth_llt, col = "brown", lwd = 1.5)
+lines(t_vals, s_smooth_llt, col = "brown", lwd = 2.2)
 
 
 ## interpretation:
 
-#In both the random walk plus noise and local linear trend model it is visible that the credible
-#interval band is tighter. In the graphs they are given by the orange hue around their respective
-#green and brown (filtered and smoothed) estimates. The gray in the graphs plots the observed data. 
+#In both the random walk plus noise and local linear trend model it is visible that the 95% credible
+#interval band is tighter. In the graphs they are given by the orange band around their respective
+#green and brown (filtered and smoothed) estimates. The gray points in the graphs are the observed data.
 #The credible interval being tighter when smoothing rather than filtering is likely in part due
-#to it being determined by more data. In filtering, at time t, one uses only data from time 1 
-#through t, while in smoothing one takes the entire data set from 1 through T. Using 'future' 
-#information, thus reduces uncertainty, which leads to a tighter credible interval. 
+#to it being determined by more data. In filtering, at time t, one uses only data from time 1
+#through t, while in smoothing one takes the entire data set from 1 through T. Using 'future'
+#information, thus reduces uncertainty, which leads to a tighter credible interval.
 
 ```
 

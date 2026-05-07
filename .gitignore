@@ -60,3 +60,4 @@ rsconnect/
 *.tex
 *.csv
 .DS_Store
+.positai

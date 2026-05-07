@@ -242,13 +242,13 @@ lines(t_vals, s_smooth_llt, col = "brown", lwd = 2.2)
 
 ## interpretation:
 
-#In both the random walk plus noise and local linear trend model it is visible that the 95% credible
-#interval band is tighter. In the graphs they are given by the orange band around their respective
-#green and brown (filtered and smoothed) estimates. The gray points in the graphs are the observed data.
-#The credible interval being tighter when smoothing rather than filtering is likely in part due
-#to it being determined by more data. In filtering, at time t, one uses only data from time 1
-#through t, while in smoothing one takes the entire data set from 1 through T. Using 'future'
-#information, thus reduces uncertainty, which leads to a tighter credible interval.
+# In both the random walk plus noise and local linear trend model it is visible that the 95% credible
+# interval band is tighter for smoothing estimates. In the graphs, the intervals are given by the orange
+# band around their respective green and brown (filtered and smoothed) estimates. The gray points in the
+# graphs are the observed data. The tighter credible intervals for smoothing rather than filtering are
+# due to them being determined by more data. In filtering, at time t, only data from time 1 through t is
+# used, while in smoothing the entire data set from 1 through T is considered. Using 'future' information
+# reduces uncertainty, which leads to a tighter credible interval.
 
 ```
 

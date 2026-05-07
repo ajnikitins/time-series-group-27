@@ -99,6 +99,132 @@ knitr::kable(mle_table, digits = 6, caption = "MLE estimates and asymptotic stan
 # note that the following are the fitted models:
 mod_rw  <- build_rw(mle_rw$par)
 mod_llt <- build_llt(mle_llt$par)
+
+## RW - Filtering
+
+rw_Filt <- dlmFilter(gistemp_ts, mod_rw)
+m_filt <- dropFirst(rw_Filt$m)
+rw_filt_sd <- filter_sd(rw_filt)[-1]
+
+
+z95 <- qnorm(0.975)
+ci_upper <- m_filt + z95 * rw_filt_sd
+ci_lower <- m_filt - z95 * rw_filt_sd
+
+t_vals <- time(m_filt)
+
+plot(gistemp_ts, type = 'l', col = "grey60", ylab = "Anomaly (Celsius)", 
+     xlab = "Year", main = "RW – Filtering", cex.main = 1.1)
+
+polygon(c(t_vals, rev(t_vals)),
+        c(ci_upper, rev(ci_lower)),
+        col = adjustcolor("orange", alpha.f = 0.7),
+        border = NA)
+
+lines(gistemp_ts, col = "grey60", lwd = 1)
+
+lines(m_filt, col = "seagreen", lwd = 1.5)
+
+
+## RW - Smoothing
+
+rw_Smooth <- dlmSmooth(gistemp_ts, mod_rw)
+
+s_smooth <- dropFirst(rw_Smooth$s)
+s_smooth <- as.numeric(s_smooth)
+z95 <- qnorm(0.975)
+
+S_smooth <- dlmSvd2var(rw_Smooth$U.S, rw_Smooth$D.S)
+S_smooth <- dropFirst(S_smooth)
+
+smooth_sd <- sqrt(unlist(S_smooth))
+
+ci_upper_smooth <- s_smooth + z95 * smooth_sd
+ci_lower_smooth <- s_smooth - z95 * smooth_sd
+
+t_vals <- time(gistemp_ts)[seq_along(s_smooth)]
+
+plot(gistemp_ts, type = "l", col = "grey60", ylab = "Anomaly (Celsius)", 
+     xlab = "Year", main = "RW – Smoothing", cex.main = 1.1)
+
+polygon(c(t_vals, rev(t_vals)),
+        c(ci_upper_smooth, rev(ci_lower_smooth)),
+        col = adjustcolor("orange", alpha.f = 0.7),
+        border = NA)
+
+lines(gistemp_ts, col = "grey60", lwd = 1)
+
+lines(t_vals, s_smooth, col = "brown", lwd = 1.5)
+
+
+## LLT - Filtering
+
+llt_Filt <- dlmFilter(gistemp_ts, mod_llt)
+m_llt <- dropFirst(llt_Filt$m[, 1])
+m_llt <- as.numeric(m_llt)
+C_llt <- dlmSvd2var(llt_Filt$U.C, llt_Filt$D.C)
+C_llt <- dropFirst(C_llt)
+
+llt_filt_sd <- sqrt(sapply(C_llt, function(x) x[1, 1]))
+
+z95 <- qnorm(0.975)
+
+ci_upper_llt <- m_llt + z95 * llt_filt_sd
+ci_lower_llt <- m_llt - z95 * llt_filt_sd
+
+t_vals <- time(gistemp_ts)[seq_along(m_llt)]
+
+plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
+     xlab = "Year", main = "LLT – Filtering", cex.main = 1.1)
+
+polygon(c(t_vals, rev(t_vals)),
+        c(ci_upper_llt, rev(ci_lower_llt)),
+        col = adjustcolor("orange", alpha.f = 0.4),
+        border = NA)
+
+lines(gistemp_ts, col = "grey60", lwd = 1)
+
+lines(t_vals, m_llt,
+      col = "seagreen",
+      lwd = 2)
+
+
+
+## LLT - Smoothing
+
+llt_Smooth <- dlmSmooth(gistemp_ts, mod_llt)
+s_smooth_llt <- dropFirst(llt_Smooth$s[, 1])
+s_smooth_llt <- as.numeric(s_smooth_llt)
+S_smooth_llt <- dlmSvd2var(llt_Smooth$U.S, llt_Smooth$D.S)
+S_smooth_llt <- dropFirst(S_smooth_llt)
+smooth_sd_llt <- sqrt(sapply(S_smooth_llt, function(x) x[1, 1]))
+
+ci_upper_llt <- s_smooth_llt + z95 * smooth_sd_llt
+ci_lower_llt <- s_smooth_llt - z95 * smooth_sd_llt
+
+plot(gistemp_ts, type = "l", col = "grey60", ylab = "Anomaly (Celsius)", 
+     xlab = "Year", main = "LLT – Smoothing", cex.main = 1.1)
+
+polygon(c(t_vals, rev(t_vals)),
+        c(ci_upper_llt, rev(ci_lower_llt)),
+        col = adjustcolor("orange", alpha.f = 0.7),
+        border = NA)
+
+lines(gistemp_ts, col = "grey60", lwd = 1)
+
+lines(t_vals, s_smooth_llt, col = "brown", lwd = 1.5)
+
+
+## interpretation:
+
+#In both the random walk plus noise and local linear trend model it is visible that the credible
+#interval band is tighter. In the graphs they are given by the orange hue around their respective
+#green and brown (filtered and smoothed) estimates. The gray in the graphs plots the observed data. 
+#The credible interval being tighter when smoothing rather than filtering is likely in part due
+#to it being determined by more data. In filtering, at time t, one uses only data from time 1 
+#through t, while in smoothing one takes the entire data set from 1 through T. Using 'future' 
+#information, thus reduces uncertainty, which leads to a tighter credible interval. 
+
 ```
 
 # Forecasting, model checking and model evaluation

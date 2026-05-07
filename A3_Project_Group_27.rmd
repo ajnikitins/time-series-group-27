@@ -95,16 +95,21 @@ knitr::kable(mle_table, digits = 6, caption = "MLE estimates and asymptotic stan
 
 # Filtering and smoothing
 
-```{r}
+```{r, fig.width=10, fig.height=7}
 # note that the following are the fitted models:
 mod_rw  <- build_rw(mle_rw$par)
 mod_llt <- build_llt(mle_llt$par)
 
 ## RW - Filtering
 
+filter_sd <- function(filt) {
+  vars <- dlmSvd2var(filt$U.C, filt$D.C)
+  sqrt(sapply(vars, function(v) v[1, 1]))
+}
+
 rw_Filt <- dlmFilter(gistemp_ts, mod_rw)
 m_filt <- dropFirst(rw_Filt$m)
-rw_filt_sd <- filter_sd(rw_filt)[-1]
+rw_filt_sd <- filter_sd(rw_Filt)[-1]
 
 
 z95 <- qnorm(0.975)
@@ -114,7 +119,7 @@ ci_lower <- m_filt - z95 * rw_filt_sd
 t_vals <- time(m_filt)
 
 plot(gistemp_ts, type = 'l', col = "grey60", ylab = "Anomaly (Celsius)", 
-     xlab = "Year", main = "RW – Filtering", cex.main = 1.1)
+     xlab = "Year", main = "RW – Filtering", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper, rev(ci_lower)),
@@ -132,7 +137,6 @@ rw_Smooth <- dlmSmooth(gistemp_ts, mod_rw)
 
 s_smooth <- dropFirst(rw_Smooth$s)
 s_smooth <- as.numeric(s_smooth)
-z95 <- qnorm(0.975)
 
 S_smooth <- dlmSvd2var(rw_Smooth$U.S, rw_Smooth$D.S)
 S_smooth <- dropFirst(S_smooth)
@@ -145,7 +149,7 @@ ci_lower_smooth <- s_smooth - z95 * smooth_sd
 t_vals <- time(gistemp_ts)[seq_along(s_smooth)]
 
 plot(gistemp_ts, type = "l", col = "grey60", ylab = "Anomaly (Celsius)", 
-     xlab = "Year", main = "RW – Smoothing", cex.main = 1.1)
+     xlab = "Year", main = "RW – Smoothing", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper_smooth, rev(ci_lower_smooth)),
@@ -167,7 +171,6 @@ C_llt <- dropFirst(C_llt)
 
 llt_filt_sd <- sqrt(sapply(C_llt, function(x) x[1, 1]))
 
-z95 <- qnorm(0.975)
 
 ci_upper_llt <- m_llt + z95 * llt_filt_sd
 ci_lower_llt <- m_llt - z95 * llt_filt_sd
@@ -175,7 +178,7 @@ ci_lower_llt <- m_llt - z95 * llt_filt_sd
 t_vals <- time(gistemp_ts)[seq_along(m_llt)]
 
 plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
-     xlab = "Year", main = "LLT – Filtering", cex.main = 1.1)
+     xlab = "Year", main = "LLT – Filtering", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper_llt, rev(ci_lower_llt)),
@@ -203,7 +206,7 @@ ci_upper_llt <- s_smooth_llt + z95 * smooth_sd_llt
 ci_lower_llt <- s_smooth_llt - z95 * smooth_sd_llt
 
 plot(gistemp_ts, type = "l", col = "grey60", ylab = "Anomaly (Celsius)", 
-     xlab = "Year", main = "LLT – Smoothing", cex.main = 1.1)
+     xlab = "Year", main = "LLT – Smoothing", cex.main = 0.8)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper_llt, rev(ci_lower_llt)),

@@ -47,19 +47,30 @@ switches, DLMs model the latent temperature as evolving continuously via
 Gaussian innovations, a more natural assumption for a physical process 
 like climate. We consider two specifications:
 
-**Random Walk plus Noise:** $$
-Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
-$$ $$
-\mu_t = \mu_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, \tau^2)
-$$
+**Random Walk plus Noise:**
 
-**Locally Linear Trend Model:** $$
+\[
 Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
-$$ $$
+\]
+
+\[
+\mu_t = \mu_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, \tau^2)
+\]
+
+**Locally Linear Trend Model:**
+
+\[
+Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
+\]
+
+\[
 \mu_t = \mu_{t-1} + \beta_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, \tau^2)
-$$ $$
+\]
+
+\[
 \beta_t = \beta_{t-1} + \zeta_t, \quad \zeta_t \sim \mathcal{N}(0, \gamma^2)
-$$
+\]
+
 
 ```{r rw and llt}
 build_rw <- function(params) {
@@ -82,40 +93,31 @@ build_llt <- function(params) {
 # Parameter estimation
 
 ```{r params estimation}
-# builder functions
-build_rw <- function(params) {
-  dlmModPoly(order = 1, dV = params[1], dW = params[2])
-}
-build_llt <- function(params) {
-  dlmModPoly(order = 2, dV = params[1], dW = c(params[2], params[3]))
-}
 set.seed(88888)
-start_rw <- c(1,1)
-start_llt <- c(1,1,1)
 
-# ML estimation - rw
+# MLE - rw
 mle_rw <- dlmMLE(gistemp_ts,
-                  parm = start_rw,
+                  parm = c(0, 0),
                   build = build_rw,
                   hessian = TRUE
                   )
 # output - rw
-sigma2_rw <- mle_rw$par[1]
-tau2_rw <- mle_rw$par[2]
-se_rw <- sqrt(diag(solve(mle_rw$hessian)))
+sigma2_rw <- exp(mle_rw$par[1])
+tau2_rw <- exp(mle_rw$par[2])
+se_rw <- sqrt(diag(solve(mle_rw$hessian))) * exp(mle_rw$par)
 
-# - llt
+# MLE - llt
 mle_llt <- dlmMLE(gistemp_ts,
-       parm = start_llt,
+       parm = c(0, 0, 0),
        build = build_llt,
        hessian = TRUE
        )
 
 # output - llt
-sigma2_llt <- mle_llt$par[1]
-tau2_llt <- mle_llt$par[2]
-gamma2_llt <- mle_llt$par[3]
-se_llt <- sqrt(diag(solve(mle_llt$hessian)))
+sigma2_llt <- exp(mle_llt$par[1])
+tau2_llt <- exp(mle_llt$par[2])
+gamma2_llt <- exp(mle_llt$par[3])
+se_llt <- sqrt(diag(solve(mle_llt$hessian))) * exp(mle_llt$par)
 
 mle_table <- data.frame(
   Model     = c("RW", "RW", "LLT", "LLT", "LLT"),

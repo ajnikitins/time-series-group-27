@@ -42,8 +42,41 @@ gistemp_ts <- gistemp_ts_raw - stl_decomp$time.series[,"seasonal"]
 
 # Dynamic linear models
 
+Unlike the Hidden Markov Model from Assignment 2 which assumes abrupt discrete regime 
+switches, DLMs model the latent temperature as evolving continuously via 
+Gaussian innovations, a more natural assumption for a physical process 
+like climate. We consider two specifications:
+
+**Random Walk plus Noise:** $$
+Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
+$$ $$
+\mu_t = \mu_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, \tau^2)
+$$
+
+**Locally Linear Trend Model:** $$
+Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
+$$ $$
+\mu_t = \mu_{t-1} + \beta_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, \tau^2)
+$$ $$
+\beta_t = \beta_{t-1} + \zeta_t, \quad \zeta_t \sim \mathcal{N}(0, \gamma^2)
+$$
+
 ```{r rw and llt}
-print(1)
+build_rw <- function(params) {
+  dlmModPoly(
+    order = 1,
+    dV = exp(params[1]),
+    dW = exp(params[2])
+  )
+}
+
+build_llt <- function(params) {
+  dlmModPoly(
+    order = 2,
+    dV = exp(params[1]),
+    dW = c(exp(params[2]), exp(params[3]))
+  )
+}
 ```
 
 # Parameter estimation

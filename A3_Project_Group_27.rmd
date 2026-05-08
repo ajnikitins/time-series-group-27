@@ -44,9 +44,9 @@ gistemp_ts <- gistemp_ts_raw - stl_decomp$time.series[,"seasonal"]
 
 
 # Dynamic linear models
-Unlike the Hidden Markov Model from Assignment 2 which assumes abrupt discrete regime 
-switches, DLMs model the latent temperature as evolving continuously via 
-Gaussian innovations, a more natural assumption for a physical process 
+Unlike the Hidden Markov Model from Assignment 2 which assumes abrupt discrete regime
+switches, DLMs model the latent temperature as evolving continuously via
+Gaussian innovations, a more natural assumption for a physical process
 like climate. We consider two specifications: a random walk plus noise
 \[
 Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
@@ -335,7 +335,7 @@ gistemp_frcst_llt <- gistemp_ts_test - window(mod_llt_train$f, start = training_
 gistemp_frcst_llt_std <- window(residuals(mod_llt_train, sd = FALSE), start = training_date + 1/frequency(gistemp_ts))
 
 # Model checking
-par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+par(mfrow = c(2, 2), mar = c(4, 1, 3, 1))
 
 acf(gistemp_frcst_rw_std)
 acf(gistemp_frcst_llt_std)

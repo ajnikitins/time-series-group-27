@@ -64,7 +64,7 @@ Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
 \[
 \beta_t = \beta_{t-1} + \zeta_t, \quad \zeta_t \sim \mathcal{N}(0, \gamma^2).
 \]
-Before fitting the models, we removed the monthly seasonal component and modeled the deseasonalized series. 
+Before fitting the models, we removed the monthly seasonal component and modeled the deseasonalized series.
 Both DLMs are time-invariant since the variance parameters are assumed constant over time. Therefore, changes in the estimated trend are driven exclusively by the latent state evolution.
 
 ```{r rw and llt, out.width='60%'}
@@ -128,7 +128,9 @@ Table 1 shows the parameters of interest and the associated standard errors. The
 
 # Filtering and smoothing
 
-```{r, fig.width=12, fig.height=9, fig.cap="Filtering and smoothing estimates for the RW and LLT models."}
+Figure 1 shows the filtering and smoothing estimates for both models. In both the random walk plus noise and local linear trend model, it is visible that the 95% credible interval band is tighter for smoothing estimates. In the graphs, the intervals are given by the orange band around their respective green and brown (filtered and smoothed) estimates. The gray points in the graphs are the observed data. The credible intervals are tighter for smoothing rather than filtering because they are being determined by more data: in filtering, at time t, only data from time 1 through t is used, while in smoothing the entire data set from 1 through T is considered. Using 'future' information reduces uncertainty, which leads to a tighter credible interval.
+
+```{r, fig.width=9, fig.height=9, fig.cap="Filtering and smoothing estimates for the RW and LLT models."}
 # fitted models:
 mod_rw  <- build_rw(mle_rw$par)
 mod_llt <- build_llt(mle_llt$par)
@@ -276,11 +278,12 @@ par(mfrow = c(1, 1))
 ```
 
 
-Figure 1 shows the filtering and smoothing estimates for both models. In both the random walk plus noise and local linear trend model, it is visible that the 95% credible interval band is tighter for smoothing estimates. In the graphs, the intervals are given by the orange band around their respective green and brown (filtered and smoothed) estimates. The gray points in the graphs are the observed data. The credible intervals are tighter for smoothing rather than filtering because they are being determined by more data: in filtering, at time t, only data from time 1 through t is used, while in smoothing the entire data set from 1 through T is considered. Using 'future' information reduces uncertainty, which leads to a tighter credible interval.
-
 # Forecasting, model checking and model evaluation
 
-```{r forecasting, fig.width=9, fig.height=5, fig.cap="ACFs and QQ plots for the RW and LLT models." }
+The training-sample estimates are very close to the full-sample estimates, with $\gamma^2$ still close to zero.
+Figure 2 shows the ACFs and QQ plots for both models. The ACFs of the standardized forecast errors show some residual autocorrelation, with a few lags exceeding the approximate confidence bounds. This suggests that neither model fully removes temporal dependence in the test-set forecast errors. The QQ plots are reasonably close to linear in the middle part, but deviate in the tails. Thus, the normality assumption is reasonable but imperfect, especially for more extreme errors. Both models have effectively the same test-set RMSE (LLT is negligibly smaller than RW). Moreover, the variance for the estimated slope innovation is essentially zero, which suggests that the data do not support a time-varying slope component. Therefore, the LLT model does not provide a meaningful improvement over the more parsimonious RW model.
+
+```{r forecasting}
 
 # Split dataset
 max_date <- max(time(gistemp_ts))
@@ -336,17 +339,6 @@ gistemp_frcst_llt <- gistemp_ts_test - window(mod_llt_train$f, start = training_
 gistemp_frcst_llt_std <- window(residuals(mod_llt_train, sd = FALSE), start = training_date + 1/frequency(gistemp_ts))
 
 # Model checking
-par(mfrow = c(2, 2), mar = c(3.5, 2.5, 2, 1), oma = c(1, 0, 0, 0))
-
-acf(gistemp_frcst_rw_std)
-acf(gistemp_frcst_llt_std)
-
-qqnorm(gistemp_frcst_rw_std)
-qqline(gistemp_frcst_rw_std)
-
-qqnorm(gistemp_frcst_llt_std)
-qqline(gistemp_frcst_llt_std)
-par(mfrow = c(1, 1))
 
 # RMSE
 rmse_rw <- sqrt(mean(gistemp_frcst_rw^2))
@@ -359,13 +351,26 @@ rmse_table <- data.frame(
 
 ```
 
-The training-sample estimates are very close to the full-sample estimates, with $\gamma^2$ still close to zero.
-Figure 2 shows the ACFs and QQ plots for both models. The ACFs of the standardized forecast errors show some residual autocorrelation, with a few lags exceeding the approximate confidence bounds. This suggests that neither model fully removes temporal dependence in the test-set forecast errors. The QQ plots are reasonably close to linear in the middle part, but deviate in the tails. Thus, the normality assumption is reasonable but imperfect, especially for more extreme errors. Both models have effectively the same test-set RMSE (LLT is negligibly smaller than RW). Moreover, the variance for the estimated slope innovation is essentially zero, which suggests that the data do not support a time-varying slope component. Therefore, the LLT model does not provide a meaningful improvement over the more parsimonious RW model.
-
-```{r}
+```{r forecast-rmse}
 knitr::kable(rmse_table, format = "latex", digits = 6, caption = "Test-set RMSE", escape = FALSE) |>
   kableExtra::kable_styling(latex_options = "hold_position")
 ```
+
+```{r forecast-plots, fig.width=9, fig.height=8.5, fig.cap="ACFs and QQ plots for the RW and LLT models." }
+par(mfrow = c(2, 2), mar = c(4, 2, 4, 0.5), oma = c(1, 0, 0, 0), cex.main = 1.5)
+
+acf(gistemp_frcst_rw_std, main = "RW – ACF")
+acf(gistemp_frcst_llt_std, main = "LLT – ACF")
+
+qqnorm(gistemp_frcst_rw_std, main = "RW – QQ")
+qqline(gistemp_frcst_rw_std)
+
+qqnorm(gistemp_frcst_llt_std, main = "RW – QQ")
+qqline(gistemp_frcst_llt_std)
+par(mfrow = c(1, 1))
+```
+
+
 
 # Discussion
 State-space models assume that the series $Y_t$ is an imperfect measurement of a latent Markov process $\theta_t$, called the state process. Conditionally on $\theta_t$, the observations are independent, and $Y_t$ depends on $\theta_t$ only. In this application, the latent process represents the underlying temperature trend.

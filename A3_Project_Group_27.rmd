@@ -54,7 +54,7 @@ Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
 \[
 \mu_t = \mu_{t-1} + \eta_t, \quad \eta_t \sim \mathcal{N}(0, \tau^2),
 \]
-and a linear growth model
+and a locally linear trend model
 \[
 Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
 \]
@@ -64,6 +64,7 @@ Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
 \[
 \beta_t = \beta_{t-1} + \zeta_t, \quad \zeta_t \sim \mathcal{N}(0, \gamma^2).
 \]
+Before fitting the models, we removed the monthly seasonal component and modeled the deseasonalized series. 
 Both DLMs are time-invariant since the variance parameters are assumed constant over time. Therefore, changes in the estimated trend are driven exclusively by the latent state evolution.
 
 ```{r rw and llt, out.width='60%'}
@@ -123,7 +124,7 @@ knitr::kable(mle_table, format = "latex", digits = 6, caption = "MLE estimates a
 
 ```
 
-Table 1 shows the parameters of interest and the associated standard errors. The estimate of $\gamma^2$ for the linear growth model and its standard error is extremely small and indistinguishable from zero. This suggests that the data provide little evidence for a time-varying growth rate, and, thus, that the LLT model actually behaves like a random walk plus noise whose state equation includes a constant drift component.
+Table 1 shows the parameters of interest and the associated standard errors. The estimate of $\gamma^2$ for the locally linear trend model and its standard error is extremely small and indistinguishable from zero. This suggests that the data provide little evidence for a time-varying growth rate, and, thus, that the LLT model actually behaves like a random walk plus noise whose state equation includes a constant drift component.
 
 # Filtering and smoothing
 
@@ -152,7 +153,7 @@ t_vals <- time(m_filt)
 
 par(mfrow = c(2, 2), mar = c(2.8, 2, 1.8, 1), oma = c(0, 0, 0, 0))
 plot(gistemp_ts, type = 'n', col = "grey60", ylab = "Anomaly (Celsius)",
-     xlab = "Year", main = "RW – Filtering", cex.main = 0.8)
+     xlab = "Year", main = "RW – Filtering", cex.main = 2)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper, rev(ci_lower)),
@@ -188,7 +189,7 @@ ci_lower_smooth <- s_smooth - z95 * smooth_sd
 t_vals <- time(gistemp_ts)[seq_along(s_smooth)]
 
 plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
-     xlab = "Year", main = "RW – Smoothing", cex.main = 0.8)
+     xlab = "Year", main = "RW – Smoothing", cex.main = 2)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper_smooth, rev(ci_lower_smooth)),
@@ -223,7 +224,7 @@ ci_lower_llt <- m_llt - z95 * llt_filt_sd
 t_vals <- time(gistemp_ts)[seq_along(m_llt)]
 
 plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
-     xlab = "Year", main = "LLT – Filtering", cex.main = 0.8)
+     xlab = "Year", main = "LLT – Filtering", cex.main = 2)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper_llt, rev(ci_lower_llt)),
@@ -255,7 +256,7 @@ ci_upper_llt <- s_smooth_llt + z95 * smooth_sd_llt
 ci_lower_llt <- s_smooth_llt - z95 * smooth_sd_llt
 
 plot(gistemp_ts, type = "n", col = "grey60", ylab = "Anomaly (Celsius)",
-     xlab = "Year", main = "LLT – Smoothing", cex.main = 0.8)
+     xlab = "Year", main = "LLT – Smoothing", cex.main = 2)
 
 polygon(c(t_vals, rev(t_vals)),
         c(ci_upper_llt, rev(ci_lower_llt)),
@@ -335,7 +336,7 @@ gistemp_frcst_llt <- gistemp_ts_test - window(mod_llt_train$f, start = training_
 gistemp_frcst_llt_std <- window(residuals(mod_llt_train, sd = FALSE), start = training_date + 1/frequency(gistemp_ts))
 
 # Model checking
-par(mfrow = c(2, 2), mar = c(2.8, 2, 1.8, 1), oma = c(0, 0, 0, 0))
+par(mfrow = c(2, 2), mar = c(3.5, 2.5, 2, 1), oma = c(1, 0, 0, 0))
 
 acf(gistemp_frcst_rw_std)
 acf(gistemp_frcst_llt_std)
@@ -367,7 +368,7 @@ knitr::kable(rmse_table, format = "latex", digits = 6, caption = "Test-set RMSE"
 ```
 
 # Discussion
-State-space models assume that the series $Y_t$ is an imperfect measurement of a latent Markov chain $\theta_t$, called the state process. Conditionally on $\theta_t$, the observations are independent, and $Y_t$ depends on $\theta_t$ only. In this application, the latent process represents the underlying temperature trend.
+State-space models assume that the series $Y_t$ is an imperfect measurement of a latent Markov process $\theta_t$, called the state process. Conditionally on $\theta_t$, the observations are independent, and $Y_t$ depends on $\theta_t$ only. In this application, the latent process represents the underlying temperature trend.
 
 Hidden Markov Models are state-space models in which the states are discrete-valued random variables. In contrast, dynamic linear models assume that the latent temperature trend evolves continuously and is normally distributed.
 

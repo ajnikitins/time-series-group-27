@@ -44,10 +44,10 @@ gistemp_ts <- gistemp_ts_raw - stl_decomp$time.series[,"seasonal"]
 
 
 # Dynamic linear models
-Unlike the Hidden Markov Model from Assignment 2 which assumes abrupt discrete regime
+Unlike the Hidden Markov Model from \textit{Assignment 2} which assumes abrupt discrete regime
 switches, DLMs model the latent temperature as evolving continuously via
 Gaussian innovations, a more natural assumption for a physical process
-like climate. We consider two specifications: a random walk plus noise
+like the climate. We consider two specifications: a random walk plus noise
 \[
 Y_t = \mu_t + \epsilon_t, \quad \epsilon_t \sim \mathcal{N}(0, \sigma^2)
 \]
@@ -123,7 +123,7 @@ knitr::kable(mle_table, format = "latex", digits = 6, caption = "MLE estimates a
 
 ```
 
-Table 1 shows the parameters of interest and the correlated standard errors. The estimate of $\gamma^2$ for the linear growth model and its standard error is extremely small and indistinguishable from zero. This suggests that the data provide little evidence for a time-varying growth rate, and, thus, that the LLT model actually behaves like a random walk plus noise whose state equation includes a constant drift component.
+Table 1 shows the parameters of interest and the associated standard errors. The estimate of $\gamma^2$ for the linear growth model and its standard error is extremely small and indistinguishable from zero. This suggests that the data provide little evidence for a time-varying growth rate, and, thus, that the LLT model actually behaves like a random walk plus noise whose state equation includes a constant drift component.
 
 # Filtering and smoothing
 
@@ -150,7 +150,7 @@ ci_lower <- m_filt - z95 * rw_filt_sd
 
 t_vals <- time(m_filt)
 
-par(mfrow = c(2, 2), mar = c(4, 4, 2, 1))
+par(mfrow = c(2, 2), mar = c(2.8, 2, 1.8, 1), oma = c(0, 0, 0, 0))
 plot(gistemp_ts, type = 'n', col = "grey60", ylab = "Anomaly (Celsius)",
      xlab = "Year", main = "RW – Filtering", cex.main = 0.8)
 
@@ -279,7 +279,7 @@ Figure 1 shows the filtering and smoothing estimates for both models. In both th
 
 # Forecasting, model checking and model evaluation
 
-```{r forecasting, fig.width=10, fig.height=7, fig.cap="ACFs and QQ plots for the RW and LLT models." }
+```{r forecasting, fig.width=9, fig.height=5, fig.cap="ACFs and QQ plots for the RW and LLT models." }
 
 # Split dataset
 max_date <- max(time(gistemp_ts))
@@ -335,7 +335,7 @@ gistemp_frcst_llt <- gistemp_ts_test - window(mod_llt_train$f, start = training_
 gistemp_frcst_llt_std <- window(residuals(mod_llt_train, sd = FALSE), start = training_date + 1/frequency(gistemp_ts))
 
 # Model checking
-par(mfrow = c(2, 2), mar = c(4, 1, 3, 1))
+par(mfrow = c(2, 2), mar = c(2.8, 2, 1.8, 1), oma = c(0, 0, 0, 0))
 
 acf(gistemp_frcst_rw_std)
 acf(gistemp_frcst_llt_std)
@@ -356,13 +356,15 @@ rmse_table <- data.frame(
   RMSE = c(rmse_rw, rmse_llt)
 )
 
-knitr::kable(rmse_table, format = "latex", digits = 6, caption = "Test-set RMSE", escape = FALSE) |>
-  kableExtra::kable_styling(latex_options = "hold_position")
-
 ```
 
 The training-sample estimates are very close to the full-sample estimates, with $\gamma^2$ still close to zero.
 Figure 2 shows the ACFs and QQ plots for both models. The ACFs of the standardized forecast errors show some residual autocorrelation, with a few lags exceeding the approximate confidence bounds. This suggests that neither model fully removes temporal dependence in the test-set forecast errors. The QQ plots are reasonably close to linear in the middle part, but deviate in the tails. Thus, the normality assumption is reasonable but imperfect, especially for more extreme errors. Both models have effectively the same test-set RMSE (LLT is negligibly smaller than RW). Moreover, the variance for the estimated slope innovation is essentially zero, which suggests that the data do not support a time-varying slope component. Therefore, the LLT model does not provide a meaningful improvement over the more parsimonious RW model.
+
+```{r}
+knitr::kable(rmse_table, format = "latex", digits = 6, caption = "Test-set RMSE", escape = FALSE) |>
+  kableExtra::kable_styling(latex_options = "hold_position")
+```
 
 # Discussion
 State-space models assume that the series $Y_t$ is an imperfect measurement of a latent Markov chain $\theta_t$, called the state process. Conditionally on $\theta_t$, the observations are independent, and $Y_t$ depends on $\theta_t$ only. In this application, the latent process represents the underlying temperature trend.

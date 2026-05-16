@@ -1,0 +1,37 @@
+---
+title: "Final project Part 1"
+subtitle: "Bocconi University - 20236 Time Series Analysis \\linebreak Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins,
+  Madelief van Weerdenburg"
+output:
+  pdf_document:
+    latex_engine: xelatex
+    fig_caption: true
+    extra_dependencies:
+        - float
+        - subfig
+fontsize: 10pt
+geometry: margin=2cm
+header-includes:
+- \setlength{\textfloatsep}{6pt}
+- \setlength{\intextsep}{6pt}
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(dlm)
+library(patchwork)
+
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "67%")
+
+set_theme(theme_classic())
+update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
+```
+
+```{r data}
+df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
+monthly_matrix <- as.matrix(df[, 2:13])
+monthly_vector <- as.numeric(t(monthly_matrix))
+
+gistemp_ts_raw <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
+```

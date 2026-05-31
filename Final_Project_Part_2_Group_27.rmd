@@ -9,25 +9,668 @@ output:
     extra_dependencies:
         - float
         - subfig
+        - booktabs
 fontsize: 10pt
 geometry: margin=2cm
 header-includes:
 - \setlength{\textfloatsep}{6pt}
 - \setlength{\intextsep}{6pt}
+params:
+  n_sttn: 3
 ---
 
 ```{r setup, include=FALSE}
-rm(list = ls())
-library(tidyverse)
+# Read params
+if (interactive() && identical(Sys.getenv("POSITRON"), "1")) {
+  params <- rmarkdown::yaml_front_matter(
+    rstudioapi::getSourceEditorContext()$path
+  )$params
+}
+
 library(dlm)
 library(patchwork)
+library(tsibble)
+library(feasts)
+library(geosphere)
+library(numDeriv)
+library(mvtnorm)
+library(broom)
+library(scales)
+library(modelsummary)
+library(glue)
+library(tidyverse)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "67%")
 
-set_theme(theme_classic())
+set_theme(theme_classic(base_size = 7))
 update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
+
+stations <- if(params$n_sttn == 2) {
+  c("PASO ROBLES MUNI AP" = "Paso Robles", "SAN FRANCISCO DWTN" = "San Francisco")
+} else if (params$n_sttn == 3) {
+  c("PASO ROBLES MUNI AP" = "Paso Robles", "PRESCOTT LOVE FLD" = "Prescott", "SAN FRANCISCO DWTN" = "San Francisco")
+} else stop("invalid station count")
+n_sttn <- params$n_sttn
+
+eval_start <- "2015-01-01"
+
+generate_models <- FALSE
+
+model_path <- glue("models/{n_sttn}")
 ```
 
 ```{r data}
+get_seasonality <- \(x) {
+  x_ts <- ts(x, frequency = 365)
+  des <- stl(x_ts, s.window = "periodic", t.window = 365*7, l.window = 365, robust = TRUE)
 
+  as.double(des$time.series[, "seasonal"])
+}
+
+data_raw_full <- read_csv("ghcn.txt") %>%
+  # Convert to Celsius
+  mutate(TMAX = TMAX / 10)
+
+data_sttn <- data_raw_full %>%
+  mutate(min_date = min(date), max_date = max(date), .by = station) %>%
+  distinct(ID, station, latitude, longitude, elevation, .keep_all = TRUE)
+
+# Use simple station names
+stations_note <- paste("Stations:", glue_collapse(glue('({stations}) = {names(stations)}'), sep = ', '))
+
+# Distance matrix
+data_dist_sttn <- data_sttn %>%
+  filter(station %in% names(stations)) %>%
+  arrange(match(station, stations)) %>%
+  select(longitude, latitude) %>%
+  distm() / 1000
+
+data_main_raw <- data_raw_full %>%
+  arrange(match(station, stations)) %>%
+  filter(station %in% names(stations)) %>%
+  select(station, date, TMAX) %>%
+  # Recode stations
+  mutate(station = recode_values(station, from = names(stations), to = stations)) %>%
+  # Filter date ranges
+  mutate(min_date = min(date), max_date = max(date), .by = station) %>%
+  filter(between(date, max(min_date), min(max_date))) %>%
+  select(-min_date, -max_date) %>%
+  # Remove leap days
+  filter(!(month(date) == 2 & day(date) == 29)) %>%
+  # Create day-of-year index
+  mutate(doy = if_else(leap_year(date) & yday(date)> 59, yday(date) - 1, yday(date)))
+
+# Seasonalize only on the training dataset
+data_seasonality <- data_main_raw %>%
+  filter(date < eval_start) %>%
+  mutate(seasonal = get_seasonality(TMAX), .by = station) %>%
+  summarise(seasonal = mean(seasonal), .by = c(station, doy))
+
+data_main_des_raw <- data_main_raw %>%
+  left_join(data_seasonality, by = c("station", "doy")) %>%
+  mutate(TMAX_des = TMAX - seasonal)
+
+## Modelling data
+data_main <- data_main_des_raw %>%
+  pivot_wider(id_cols = c(date, doy), names_from = station, values_from = TMAX)
+
+data_main_des <- data_main_des_raw %>%
+  pivot_wider(id_cols = c(date, doy), names_from = station, values_from = TMAX_des)
+
+ts_main <- data_main %>%
+  select(all_of(unname(stations))) %>%
+  ts(frequency = 365)
+
+ts_main_train <- data_main %>%
+  filter(date < eval_start) %>%
+  select(all_of(unname(stations))) %>%
+  ts(frequency = 365)
+
+ts_main_des <- data_main_des %>%
+  select(all_of(unname(stations))) %>%
+  ts(frequency = 365)
+
+ts_main_des_train <- data_main_des %>%
+  filter(date < eval_start) %>%
+  select(all_of(unname(stations))) %>%
+  ts(frequency = 365)
+```
+
+```{r plot_data, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Left: Day-of-year seasonal temperature effects. Right: Deseasonalized series (black) and 365-day rolling mean (red).\\label{fig:data}"}
+## Look at seasonality
+plot_seas <- data_seasonality %>%
+  ggplot(aes(x = doy, y = seasonal, color = station)) +
+  geom_line() +
+  geom_hline(yintercept = 0) +
+  labs(x = "Day of year", y = "Seasonal effect (ºC)", color = "Station") +
+  theme(legend.position = "bottom", legend.direction = "horizontal", legend.margin = margin(0, 0, 0, 0), legend.box.spacing = unit(0, "pt"))
+
+
+## Deseasonalized series
+plot_ts_deseas <- data_main_des_raw %>%
+  mutate(TMAX_des_rolling = zoo::rollmean(TMAX_des, k = 365, fill = NA), .by = station) %>%
+  ggplot(aes(x = date, y = TMAX_des)) +
+  geom_point(alpha = 0.2, shape = ".") +
+  geom_line(aes(y = TMAX_des_rolling), color = "red") +
+  facet_wrap(~ station) +
+  labs(x = NULL, y = "Deseasonalized maximum temperatures (ºC)")
+
+plot_seas + plot_ts_deseas
+```
+
+```{r model_spec}
+build_base <- \(mod, n) {
+  mod$FF <- mod$FF %x% diag(n)
+  mod$GG <- mod$GG %x% diag(n)
+
+  mod$m0 <- rep(0, nrow(mod$GG))
+  mod$C0 <- diag(nrow(mod$GG)) * 1e7
+
+  mod
+}
+
+# 1 obs, 1 sys variance for each station
+build_indep <- \(u, n = 2) {
+  mod <- dlmModPoly(1)
+  mod <- build_base(mod, n)
+
+  var_v <- exp(u[1:n])
+  var_w <- exp(u[1:n + n])
+
+  mod$V <- diag(n) * var_v
+  mod$W <- diag(n) * var_w
+
+  mod
+}
+
+# 1 obs, 1 sys variance for each station, n(n-1)/2 sys covariances
+build_full <- \(u, n = 2) {
+  mod <- dlmModPoly(1)
+  mod <- build_base(mod, n)
+
+  var_v <- exp(u[1:n])
+
+  mod$V <- diag(n) * var_v
+
+  L <- matrix(0, n, n)
+  L[lower.tri(L, diag = TRUE)] <- u[1:(n*(n+1)/2) + n]
+  diag(L) <- exp(diag(L))
+
+  mod$W <- L %*% t(L)
+
+  mod
+}
+
+# 1 obs variance for each station, 1 system variance parameter, 1 decay parameter
+build_dist <- \(u, n = 2, dist) {
+  mod <- dlmModPoly(1)
+  mod <- build_base(mod, n)
+
+  var_v <- exp(u[1:n])
+  var_w <- exp(u[1 + n])
+  phi <- exp(u[1 + n + 1])
+
+  mod$V <- diag(n) * var_v
+  mod$W <- var_w * exp(-phi*dist)
+
+  mod
+}
+
+# 1 obs variance for each station, 1 system variance parameter, 1 seasonal variance, 1 decay parameter
+build_seas <- \(u, n = 2, dist) {
+  mod <- dlmModPoly(1) + dlmModTrig(s = 365, q = 1)
+  mod <- build_base(mod, n)
+
+  var_v <- exp(u[1:n])
+  var_w <- exp(u[1 + n])
+  phi <- exp(u[1 + n + 2])
+  var_seas <- exp(u[1 + n + 1])
+
+  mod$V <- diag(n) * var_v
+  mod$W <- as.matrix(bdiag(var_w * exp(-phi*dist), var_seas * diag(2*n)))
+
+  mod
+}
+```
+
+```{r model_fit}
+# Caching helper
+generate_model <- \(path, code, data_train, build, init_par) {
+  model_path <- file.path(path, paste0(code, ".RDS"))
+
+  if (generate_models | !file.exists(model_path)) {
+    fit <- dlmMLE(y = data_train, build = build, parm = init_par, hessian = TRUE)
+
+    saveRDS(fit, model_path)
+  } else {
+    fit <- readRDS(model_path)
+  }
+
+  fit
+}
+
+# Initial values
+init_indep <- rep(0, 2 * n_sttn)
+init_full <- rep(0, n_sttn*(n_sttn+3)/2)
+init_dist <- c(rep(0, n_sttn + 1), -5)
+init_seas <- c(rep(0, n_sttn + 2), -5)
+init_dist_ch_low <- c(rep(0, n_sttn + 1), -8)
+init_dist_ch_high <- c(rep(0, n_sttn + 1), -2)
+init_seas_ch_low <- c(rep(0, n_sttn + 2), -8)
+init_seas_ch_high <- c(rep(0, n_sttn + 2), -2)
+
+# Setup model infrastructure
+tbl_models_base <- tibble(
+  code = c(
+    "mod_indep", "mod_full", "mod_dist", "mod_seas",
+    "mod_dist_ch_low", "mod_dist_ch_high", "mod_seas_ch_low", "mod_seas_ch_high"
+  ),
+  name = factor(c(
+    "Independent", "Full W", "Distance", "Seasonal distance",
+    "Distance (low)", "Distance (high)", "Seasonal distance (low)", "Seasonal distance (high)"
+  )),
+  init_par = list(
+    init_indep, init_full, init_dist, init_seas,
+    init_dist_ch_low, init_dist_ch_high, init_seas_ch_low, init_seas_ch_high
+  ),
+  build = list(
+    \(par) build_indep(par, n = n_sttn),
+    \(par) build_full(par, n = n_sttn),
+    \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),
+    \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),
+    \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),
+    \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),
+    \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),
+    \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn)
+  ),
+  flg_deseas = c(
+    TRUE, TRUE, TRUE, FALSE,
+    TRUE, TRUE, FALSE, FALSE
+  ),
+  data_train = if_else(flg_deseas, list(ts_main_des_train), list(ts_main_train)),
+  data = if_else(flg_deseas, list(ts_main_des), list(ts_main))
+)
+
+# Fit models only if flagged or models are missing
+tbl_models_fit <- tbl_models_base %>%
+  rowwise() %>%
+  mutate(fit = list(generate_model(model_path, code, data_train, build, init_par))) %>%
+  ungroup()
+
+pwalk(tbl_models_fit, \(name, fit, ...) {
+  if (fit$convergence) warning(glue::glue("Model {name} did not converge!"))
+})
+```
+
+```{r model_param_calibr, eval = FALSE}
+# Ad-hoc checking of MLE fit
+# Compare LL across different parameter values
+# Untested parameters set to MLE
+
+set_theme(theme_classic(base_size = 12))
+mirai::daemons(12)
+
+calibr_range <- seq(from = -20, to = 10, by = 0.5)
+
+def_par <- tbl_models_fit %>%
+  rowwise() %>%
+  reframe(model = name, par = seq_along(fit$par), def = fit$par, init = init_par)
+
+tbl_models_calibr <- tbl_models_fit %>%
+  pmap_dfr(\(name, fit, build, data_train, ...) {
+    imap_dfr(fit$par, \(x, i) {
+      y <- map_dbl(calibr_range,
+        in_parallel(
+          \(n) {
+            library(dlm)
+
+            par_iter <- par
+            par_iter[i] <- n
+            dlmLL(data_train, build(par_iter))
+          },
+          i = i, par = fit$par, build = build, data_train = data_train, n_sttn = n_sttn, data_dist_sttn = data_dist_sttn,
+          build_base = build_base, build_indep = build_indep, build_full = build_full, build_dist = build_dist, build_seas = build_seas
+        )
+      )
+
+      tibble(model = name, par = i, x = calibr_range, y = y)
+    })
+  })
+
+tbl_models_calibr %>%
+  left_join(def_par, by = c("model", "par")) %>%
+  filter(between(x, pmin(def, init)-0.5, pmax(def, init)+0.5), .by = model) %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_line() +
+  ggh4x::facet_grid2(model ~ par, scales = "free", independent = "all") +
+  geom_vline(data = def_par, aes(xintercept = init, color = "Initial")) +
+  geom_vline(data = def_par, aes(xintercept = def, color = "Fitted"))
+```
+
+```{r model_params}
+
+# Helper for inverting the hessian to get a var-covar estimate
+vcov_mle <- \(fit) {
+  browser()
+  H <- (fit$hessian + t(fit$hessian)) / 2
+  vcov_mle <- (solve(H) + t(solve(H))) / 2
+}
+
+# Helper for delta method-ing transformed parameters
+delta_meth <- \(fit, f, model) {
+  u_hat <- fit$par
+  theta_hat <- f(u_hat)
+
+  J <- jacobian(f, u_hat)
+
+  J <- matrix(J, nrow = length(theta_hat))
+  rownames(J) <- names(theta_hat)
+
+  V_u <- vcov_mle(fit)
+  V_theta <- J %*% V_u %*% t(J)
+  var_theta <- diag(V_theta)
+
+  if (any(var_theta < 0)) {
+    warning(glue::glue("{model}: Some delta-method variances are negative; set to NA."))
+  }
+
+  tibble(
+    model = model,
+    term = names(theta_hat),
+    estimate = as.double(theta_hat),
+    std.error = if_else(var_theta >= 0, sqrt(var_theta), NA)
+  )
+}
+
+# Model-specific report functions
+report_indep <- \(stations) {
+  \(u) {
+    n <- n_sttn
+
+    c(
+      setNames(exp(u[1:n]), paste0("obs_var: ", stations)),
+      setNames(exp(u[n + 1:n]), paste0("level_var: ", stations))
+    )
+  }
+}
+
+report_full <- \(stations) {
+  \(u) {
+    n <- n_sttn
+
+    obs_var <- exp(u[1:n])
+
+    L <- matrix(0, n, n)
+    L[lower.tri(L, diag = TRUE)] <- u[n + seq_len(n * (n + 1) / 2)]
+    diag(L) <- exp(diag(L))
+
+    W <- L %*% t(L)
+    pair <- which(lower.tri(W), arr.ind = TRUE)
+
+    out <- c(
+      setNames(obs_var, paste0("obs_var: ", stations)),
+      setNames(diag(W), paste0("level_var: ", stations))
+    )
+
+    if (nrow(pair) > 0) {
+      cov_w <- W[pair]
+      cor_w <- cov_w / sqrt(diag(W)[pair[, 1]] * diag(W)[pair[, 2]])
+
+      out <- c(
+        out,
+        # setNames(cov_w, paste0("level_cov: ", stations[pair[, 2]], " - ", stations[pair[, 1]])),
+        setNames(cor_w, paste0("level_corr: ", stations[pair[, 2]], " - ", stations[pair[, 1]]))
+      )
+    }
+
+    out
+  }
+}
+
+report_dist <- \(stations, dist) {
+  \(u) {
+    n <- n_sttn
+
+    obs_var <- exp(u[1:n])
+    level_var <- exp(u[n + 1])
+    phi <- exp(u[n + 2])
+
+    R <- exp(-phi * dist)
+    W <- level_var * R
+
+    pair <- which(lower.tri(W), arr.ind = TRUE)
+
+    out <- c(
+      setNames(obs_var, paste0("obs_var: ", stations)),
+      common_level_var = level_var,
+      phi = phi,
+      corr_half_distance_km = log(2) / phi
+    )
+
+    if (nrow(pair) > 0) {
+      out <- c(
+        out,
+        # setNames(W[pair], paste0("level_cov: ", stations[pair[, 2]], " - ", stations[pair[, 1]])),
+        setNames(R[pair], paste0("level_corr: ", stations[pair[, 2]], " - ", stations[pair[, 1]]))
+      )
+    }
+
+    out
+  }
+}
+
+report_seas <- \(stations, dist) {
+  \(u) {
+    n <- n_sttn
+
+    obs_var <- exp(u[1:n])
+    level_var <- exp(u[n + 1])
+    seas_var <- exp(u[n + 2])
+    phi <- exp(u[n + 3])
+
+    R <- exp(-phi * dist)
+    W_level <- level_var * R
+
+    pair <- which(lower.tri(W_level), arr.ind = TRUE)
+
+    out <- c(
+      setNames(obs_var, paste0("obs_var: ", stations)),
+      common_level_var = level_var,
+      seasonal_var = seas_var,
+      phi = phi,
+      corr_half_distance_km = if (log(2) / phi > 1e6) NA else log(2) / phi
+    )
+
+    if (nrow(pair) > 0) {
+      out <- c(
+        out,
+        # setNames(W_level[pair], paste0("level_cov: ", stations[pair[, 2]], " - ", stations[pair[, 1]])),
+        setNames(R[pair], paste0("level_corr: ", stations[pair[, 2]], " - ", stations[pair[, 1]]))
+      )
+    }
+
+    out
+  }
+}
+```
+
+```{r tbl_params}
+# Parameter table
+gof_map_dlm <- tribble(
+  ~ raw, ~ clean, ~ fmt,
+  "k", "Num.Param.", 0,
+  "neg_logLik", "Neg.Log.Lik.", 0,
+  "AIC", "AIC", 0,
+)
+
+param_list <- tbl_models_fit %>%
+  mutate(report = c(
+    report_indep(stations), report_full(stations), report_dist(stations, data_dist_sttn), report_seas(stations, data_dist_sttn),
+    report_dist(stations, data_dist_sttn), report_dist(stations, data_dist_sttn), report_seas(stations, data_dist_sttn), report_seas(stations, data_dist_sttn)
+  )) %>%
+  filter(str_detect(code, "dist")) %>%
+  pmap(\(name, fit, report, ...) {
+    list(
+      tidy = delta_meth(fit, report, model = name),
+      glance = tibble(
+        neg_logLik = fit$value,
+        k = length(fit$par),
+        AIC = 2*(neg_logLik + k)
+      )
+    ) %>%
+      magrittr::set_class("modelsummary_list")
+  }) %>%
+  set_names(tbl_models$name)
+
+modelsummary(
+  param_list,
+  title = "Estimated model parameters.\\label{tbl:params}",
+  escape = FALSE,
+  output = "latex",
+  shape = term ~ model + statistic,
+  gof_map = gof_map_dlm,
+  coef_rename = c(
+    "obs_var" = "Obs. var.",
+    "level_var" = "Level var.",
+    "level_corr" = "Level corr.",
+    "common_level_var" = "Common level var.",
+    "phi" = "Distance penalty",
+    "corr_half_distance_km" = "Distance for 0.5 corr.",
+    "seasonal_var" = "Seasonal var."
+  )
+)
+```
+
+```{r model_eval}
+# Filtering
+tbl_filters <- tbl_model_fit %>%
+  mutate(model = list(build(fit$par))) %>%
+  mutate(filter = list(dlmFilter(data, model))) %>%
+  ungroup()
+
+# Processing forecasts (and also forecast variance)
+tbl_forecasts <- tbl_filters %>%
+  pmap(\(name, model, filter, ...) {
+    R <- dlmSvd2var(filter$U.R, filter$D.R)
+    Qt <- map(R, ~ model$FF %*% . %*% t(model$FF) + model$V)
+
+    out <- as_tibble(do.call(cbind, residuals(filter, type = "raw"))) %>%
+      bind_cols(magrittr::set_colnames(as_tibble(filter$f), paste0("f.", colnames(filter$f)))) %>%
+      mutate(model = name, date = data_main$date, Q = Qt)
+  }) %>%
+  list_rbind() %>%
+  filter(date >= eval_start) %>%
+  rowwise() %>%
+  pivot_longer(-c(model, date, Q), names_to = c("var", "station"), names_sep = "\\.", values_to = "value") %>%
+  pivot_wider(names_from = "var", values_from = "value") %>%
+  mutate(res_std = res / sd) %>%
+  mutate(
+    joint_nlpd = dmvnorm(f + res, mean = f, sigma = first(Q), log = TRUE),
+    res_white = backsolve(chol(first(Q)), res, transpose = TRUE),
+    .by = c(date, model))
+```
+
+```{r tbl_corr}
+# Forecast checking: Residual station cross-correlation
+get_station_corr <- \(data) {
+  data %>%
+    pivot_wider(names_from = station, values_from = res_white) %>%
+    select(-date) %>%
+    cor()
+}
+
+get_pair_corr <- \(C) {
+  pairs <- which(lower.tri(C), arr.ind = TRUE)
+  tibble(
+    pair = paste0(stations[pairs[, 2]], " - ", stations[pairs[, 1]]),
+    corr = C[pairs]
+  )
+}
+
+tbl_cross_corr <- tbl_forecasts %>%
+  summarize(C = list(get_station_corr(pick(date, station, res_white))), .by = model) %>%
+  reframe(get_pair_corr(first(C)), .by = model) %>%
+  bind_rows(
+    summarize(., pair = "Average absolute", corr = mean(abs(corr)), .by = model)
+  )
+
+tbl_cross_corr %>%
+  pivot_wider(names_from = model, values_from = corr) %>%
+  knitr::kable(
+    digits = 3,
+    caption = glue::glue("Residual cross-station correlations"),
+    format = "latex", booktabs = T, linesep = ""
+  )
+```
+
+```{r plot_eval_qq, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Quartile-quartile plots.\\label{fig:qq}"}
+# Forecast checking: QQ plots
+tbl_forecasts %>%
+    ggplot(aes(sample = res_std)) +
+    geom_qq_line() +
+    geom_qq(shape = ".") +
+    facet_grid(station ~ model)
+```
+
+```{r plot_eval_acf, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Estimated autocorrelation functions.\\label{fig:acf}"}
+# Forecast checking: ACFs
+tbl_forecasts %>%
+    reframe(tidy(acf(res_std, lag.max = 60, plot = FALSE)), n = n(), .by = c(model, station)) %>%
+    filter(lag > 0) %>%
+    mutate(ci = qnorm(1 - 0.05/2)/sqrt(n)) %>%
+    ggplot(aes(x = lag, y = acf)) +
+    geom_hline(yintercept = 0, color = "grey50") +
+    geom_segment(aes(xend = lag, yend = 0)) +
+    geom_hline(aes(yintercept = ci), linetype = "dashed") +
+    geom_hline(aes(yintercept = -ci), linetype = "dashed") +
+    facet_grid(station~model) +
+    scale_x_continuous(breaks = pretty_breaks()) +
+    labs(
+      x = "Lag (days)",
+      y = NULL
+    )
+```
+
+```{r tbl_perf_indiv}
+# Model-station forecast performance
+tbl_forecast_perf_indiv <- tbl_forecasts %>%
+  nest(frcst = c(date, res, sd, f, res_std, joint_nlpd, res_white), .by = c(model, station)) %>%
+  rowwise() %>%
+  mutate(
+    mean = mean(frcst$res),
+    MAE = mean(abs(frcst$res)),
+    RMSFE = sqrt(mean(frcst$res^2)),
+    joint_NLPD = -mean(frcst$joint_nlpd),
+    acf_1 = cor(frcst$res_std, lag(frcst$res_std), use = "complete.obs"),
+    acf_2 = cor(frcst$res_std, lag(frcst$res_std, 2), use = "complete.obs"),
+    coverage = mean(between(frcst$f + frcst$res, frcst$f-qnorm(1-0.05/2)*frcst$sd, frcst$f+qnorm(1-0.05/2)*frcst$sd))
+  ) %>%
+  ungroup()
+
+tbl_forecast_perf_indiv %>%
+  arrange(station) %>%
+  select(Station = station, Model = model, Mean = mean, MAE, RMSFE, `ACF(1)` = acf_1, `ACF(2)` = acf_2, `Coverage` = coverage) %>%
+  knitr::kable(
+    digits = 3,
+    caption = "Individual model-station forecast performance\\label{tbl:perf_indiv}",
+    format = "latex", booktabs = T, linesep = ""
+  )
+```
+
+```{r tbl_perf_avg}
+# Model forecast performance
+tbl_forecast_perf_avg <- tbl_forecast_perf_indiv %>%
+  summarize(
+    across(c(mean, MAE, RMSFE, coverage), mean),
+    joint_NLPD = first(joint_NLPD),
+    .by = model
+  )
+
+tbl_forecast_perf_avg %>%
+  select(Model = model, Mean = mean, MAE, RMSFE, Coverage = coverage, `Joint NLPD` = joint_NLPD) %>%
+  knitr::kable(
+    digits = 3,
+    caption = "Average model forecast performance\\label{tbl:perf_avg}",
+    format = "latex", booktabs = T, linesep = ""
+  )
 ```

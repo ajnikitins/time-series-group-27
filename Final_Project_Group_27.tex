@@ -1,15 +1,23 @@
 \documentclass[10pt]{article}
 
-\usepackage[margin=2in]{geometry}
 \usepackage{graphicx}
+\usepackage[a4paper, margin=2cm]{geometry}
+\usepackage{microtype}
+\usepackage{lmodern}
+\usepackage{fontspec}
+\usepackage{parskip}
+\usepackage{tabularray}
 
-% Margins
-% \topmargin=-0.45in
-% \evensidemargin=0in
-% \oddsidemargin=0in
-% \textwidth=6.5in
-% \textheight=9.0in
-% \headsep=0.25in
+\usepackage{mathtools}
+\usepackage{siunitx}
+\usepackage{amsfonts}
+
+\usepackage{hyperref}
+\usepackage{float}
+\usepackage{booktabs}
+
+% Reduce spacing between figures and captions
+\setlength\abovecaptionskip{-10pt}
 
 \title{Final project for Time Series Analysis (20236)}
 \author{%
@@ -25,7 +33,6 @@ Arturs Janis Nikitins, Madelief van Weerdenburg
 \maketitle
 % \pagebreak
 
-%--Paper--
 
 \section{GISTEMP}
 
@@ -34,8 +41,218 @@ Lorem Impsum
 
 \pagebreak
 \section{GHCN}
-Lorem Ipsum \\
+In the second part of the report, we turn to the temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures and Dynamic Linear Models (DLMs).
 
-%--/Paper--
+\subsection*{Data}
+
+We use GHCN data on the \textit{PASO ROBLES MUNI AP} (Paso Robles), \textit{SAN FRANCISCO DWTN} (San Francisco) and \textit{BAKER CITY AP} (Baker City) stations.
+\textbf{MORE ON THIS}The stations were selected for their geographical proximity to each other, providing an avenue for exploiting potential correlations, and data availability.
+
+From the GHCN dataset, we select daily maximum temperatures recorded at each station from 1948-07-01 to 2024-12-31. We transform the recorded temperatures into centigrade.
+To ease seasonality adjustments, we omit observations for Feb 29.
+We subset the sample into a DLM estimation sample from 1948-07-01 to 2014-01-01 and a prediction evaluation sample from 2015-01-01 to 2024-12-31.
+Baker City has 30 missing observations for Sep 2001; however, this does not significantly impact our results as the Kalman filter is robust to missing observations and the missing dates are outside our evaluation window.
+In the end, for each station we have \num{24274} daily observations for the training sample and \num{3650} observations for the evaluation sample.
+
+We calculate great-circle distances between each station.
+
+We deseasonalize the series at the station level by subtracting the average value for the corresponding day of the year from each observation.
+Before subtracting the seasonal effects, the day-of-the-year averages are circularly smoothed with a 31-day moving average and demeaned.
+
+The seasonal effects and deseasonalized series are shown in Figure~\ref{fig:data}.
+Following conventional wisdom, summer months display higher average maximum temperatures than winter months.
+Paso Robles and Baker City exhibit greater seasonal variability (maximum temperatures are up to \SI{10}{}-\SI{15}{\celsius} lower in winter days and \SI{10}{}-\SI{15}{\celsius} higher in summer days than on average), while maximum temperatures in San Francisco vary only by \SI{5}{\celsius} from the average.
+After deseasonalization, Paso Robles has the warmest weather -- maximum temperatures vary between \SI{10}{} and \SI{40}{\celsius} with an average of around \SI{25}{\celsius}.
+San Francisco has an average maximum daily temperature of \SI{18}{\celsius}; most days have a maximum temperatures between \SI{10}{} and \SI{20}{\celsius} degrees, with a fatter tail surpassing \SI{30}{\celsius}.
+Baker City has the coldest but most varied weather: average maximum daily temperatures are \SI{15}{\celsius}, ranging from freezing temperatures to approaching \SI{30}{\celsius}.
+
+Overall, the deseasonalized temperatures do not display any strong trends; thus, random-walk plus noise models could be considered suitable for modelling this data.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_3_files/figure-latex/plot_data-1}
+\caption{Left: Day-of-year seasonal temperature effects. Right: Deseasonalized series (black) and 365-day rolling mean (red).}
+\label{fig:data}
+\end{figure}
+
+\subsection*{Models}
+
+We compare four DLM specifications: three random walk plus noise models, with independent, free, and spatially-constrained state evolution dependence, and a random walk with a seasonal component and spatially-correlated state innovations.
+
+Let \(Y_t = (Y_{1t},Y_{2t},Y_{3t})'\) denote the vector of seasonality-adjusted daily maximum temperatures at the selected stations.
+The latent state \(\theta_t=(\theta_{1t}, \theta_{2t},\theta_{3t})'\) represents the underlying local temperature level at each station.
+
+The base random walk plus noise structure is
+\[
+\begin{aligned}
+Y_t &= \theta_t + v_t,
+& v_t &\sim \mathcal{N}_3(0,V), \\
+\theta_t &= \theta_{t-1} + w_t,
+& w_t &\sim \mathcal{N}_3(0,W),
+\end{aligned}
+\]
+where, in all models, the observation evolution covariance matrix is diagonal:
+\[
+V = \operatorname{diag}(\sigma^2_{v,1},\sigma^2_{v,2},\sigma^2_{v,3}).
+\]
+
+\subsubsection*{1: Independent random walk plus noise (Independent)}
+
+This model assumes that both observation errors and latent temperature innovations are independent across stations; thus, the state evolution covariance matrix is diagonal:
+\[
+W = \operatorname{diag}(\sigma^2_{w,1},\sigma^2_{w,2},\sigma^2_{w,3}).
+\]
+
+\subsubsection*{2: Random walk with unrestricted evolution covariance (Full W)}
+
+This model allows the latent temperature levels of different stations to move together, but the dependence is estimated freely. The state evolution covariance matrix is unrestricted positive definite:
+\[
+W =
+\begin{pmatrix}
+\sigma^2_{w,11} & \sigma^2_{w,12} & \sigma^2_{w,13} \\
+\sigma^2_{w,21} & \sigma^2_{w,22} & \sigma^2_{w,23} \\
+\sigma^2_{w,31} & \sigma^2_{w,32} & \sigma^2_{w,33}
+\end{pmatrix}.
+\]
+
+\subsubsection*{3: Spatial random walk with distance-based covariance (Distance)}
+
+This model imposes the assumption that nearby stations should have more strongly correlated latent temperature innovations than distant stations. The state evolution covariance matrix is spatially structured:
+\[
+W_{jk}
+=
+\operatorname{Cov}(w_{j,t},w_{k,t})
+=
+\sigma_w^2 \exp(-\phi d_{jk}),
+\qquad j,k=1,2,3,
+\]
+where \(d_{jk}\) is the great-circle distance between stations \(j\) and \(k\),
+\(\sigma_w^2>0\) is the marginal evolution variance, and \(\phi>0\) controls
+the rate at which dependence decays with distance.
+
+Equivalently,
+\[
+W
+=
+\sigma_w^2
+\begin{pmatrix}
+1 & \exp(-\phi d_{12}) & \exp(-\phi d_{13}) \\
+\exp(-\phi d_{21}) & 1 & \exp(-\phi d_{23}) \\
+\exp(-\phi d_{31}) & \exp(-\phi d_{32}) & 1
+\end{pmatrix}.
+\]
+
+
+\subsubsection*{4: Spatial random walk with seasonal component (Seasonal distance)}
+
+For the seasonal model, the original non-seasonally-adjusted maximum temperatures are used. Define the state vector as
+\[
+\theta_t =
+\begin{pmatrix}
+\mu_t & \gamma_t & \gamma_t^*
+\end{pmatrix}'
+=
+\begin{pmatrix}
+\mu_{1t}, \mu_{2t}, \mu_{3t}, \gamma_{1t}, \gamma_{2t}, \gamma_{3t}, \gamma^*_{1t}, \gamma^*_{2t}, \gamma^*_{3t}
+\end{pmatrix}',
+\]
+where \(\mu_t\) is the vector of latent temperature levels and
+\((\gamma_t,\gamma_t^*)\) is a first-order Fourier seasonal component.
+
+The model is
+\[
+\begin{aligned}
+Y_t &= F\theta_t + v_t,
+& v_t &\sim \mathcal{N}_3(0,V), \\
+\theta_t &= G\theta_{t-1} + w_t,
+& w_t &\sim \mathcal{N}_{9}(0,W),
+\end{aligned}
+\]
+with observation, transition and state covariance matrices
+\[
+F =
+\begin{pmatrix}
+I_3 & I_3 & 0_3
+\end{pmatrix},
+\qquad
+G =
+\begin{pmatrix}
+I_3 & 0 & 0 \\
+0 & \cos(\omega) I_3 & \sin(\omega) I_3 \\
+0 & -\sin(\omega) I_3 & \cos(\omega) I_3
+\end{pmatrix},
+\qquad
+\omega = \frac{2\pi}{365},
+\qquad
+W =
+\begin{pmatrix}
+W_\mu & 0 \\
+0 & \sigma_s^2 I_{6}
+\end{pmatrix},
+\]
+where the level innovation covariance \(W_\mu\) has a spatial structure as in Model 3, and \(\sigma_s^2>0\) controls the variability of the seasonal component.
+
+The unknown parameters were estimated by maximum likelihood on the training sample.
+Variance and distance penalty parameters were constrained to be positive through log parametrization, while the unrestricted evolution covariance matrix was parametrized via Cholesky factorization.
+Initial variances and Cholesky parameters were set to unity, while, to ensure proper convergence, the distance penalty was re-estimated with initial values \(e^{-5}, e^{-8}, e^{-2}\), keeping the model with the largest likelihood.
+Standard errors were computed from the inverse Hessian and transformed to the reported scale using the delta method.
+
+Estimated parameters are reported in Table~\ref{tbl:params}.
+To aid interpretability, we report estimated correlations and additionally the half-correlation distance for distance-based-covariance models.
+
+The estimated level correlations are positive for all station pairs, confirming that the three stations do not evolve independently.
+In the Full W model, the strongest latent dependence is between Paso Robles and San Francisco, while Baker City has weaker correlations with the California stations.
+This is consistent with the geography of the selected stations.
+The distance model imposes a more parsimonious spatial structure with an estimated half-correlation distance of about \SI{394}{}--\SI{396}{km}, implying that latent level shocks remain strongly correlated for nearby stations but decay with distance.
+The seasonal distance model estimates the seasonal innovation variance at effectively zero, giving almost the same fit as the distance model based on deseasonalized data.
+Therefore, in this application, explicit stochastic seasonality adds little to a deterministic annual structure.
+
+\begin{table}[htbp]
+\centerline{
+\begin{talltblr}[         %% tabularray outer open
+caption={Estimated model parameters.\label{tbl:params}},
+]                     %% tabularray outer close
+{                     %% tabularray inner open
+colspec={Q[]Q[]Q[]Q[]Q[]Q[]Q[]Q[]Q[]},
+hline{2}={9}{solid, black, 0.03em},
+hline{2}={2,4,6,8}{solid, black, 0.03em, l=-0.5},
+hline{2}={3,5,7}{solid, black, 0.03em, r=-0.5},
+hline{3}={1-9}{solid, black, 0.05em},
+hline{16}={1-9}{solid, black, 0.05em},
+hline{1}={1-9}{solid, black, 0.08em},
+hline{19}={1-9}{solid, black, 0.08em},
+column{3,5,7,9}={}{halign=c},
+cell{1}{1}={}{halign=c},
+cell{1}{2}={c=2}{halign=c},
+cell{1}{4}={c=2}{halign=c},
+cell{1}{6}={c=2}{halign=c},
+cell{1}{8}={c=2}{halign=c},
+cell{2-18}{1}={}{halign=l},
+cell{2-18}{2}={}{halign=c},
+cell{2-18}{4}={}{halign=c},
+cell{2-18}{6}={}{halign=c},
+cell{2-18}{8}={}{halign=c},
+}                     %% tabularray inner close
+& Independent &  & Full W &  & Distance &  & Seasonal distance &  \\
+& Est. & S.E. & Est. & S.E. & Est. & S.E. & Est. & S.E. \\
+Obs. var.: Baker City & \num{1.484} & \num{0.119} & \num{2.684} & \num{0.122} & \num{3.460} & \num{0.092} & \num{3.440} & \num{0.092} \\
+Obs. var.: Paso Robles & \num{0.000} & \num{0.001} & \num{1.864} & \num{0.093} & \num{2.432} & \num{0.071} & \num{2.424} & \num{0.071} \\
+Obs. var.: San Francisco & \num{2.268} & \num{0.092} & \num{3.895} & \num{0.099} & \num{1.768} & \num{0.059} & \num{1.754} & \num{0.059} \\
+Level var.: Baker City & \num{11.004} & \num{0.234} & \num{9.030} & \num{0.198} &  &  &  &  \\
+Level var.: Paso Robles & \num{11.656} & \num{0.106} & \num{8.488} & \num{0.152} &  &  &  &  \\
+Level var.: San Francisco & \num{5.302} & \num{0.144} & \num{3.426} & \num{0.093} &  &  &  &  \\
+Level corr.: Baker City - Paso Robles &  &  & \num{0.355} & \num{0.010} & \num{0.160} & \num{0.007} & \num{0.158} & \num{0.007} \\
+Level corr.: Baker City - San Francisco &  &  & \num{0.133} & \num{0.011} & \num{0.216} & \num{0.008} & \num{0.214} & \num{0.008} \\
+Level corr.: Paso Robles - San Francisco &  &  & \num{0.750} & \num{0.010} & \num{0.609} & \num{0.007} & \num{0.607} & \num{0.007} \\
+Common level var. &  &  &  &  & \num{7.270} & \num{0.090} & \num{7.300} & \num{0.090} \\
+Distance penalty &  &  &  &  & \num{0.175} & \num{0.004} & \num{0.176} & \num{0.004} \\
+Distance for 0.5 corr. &  &  &  &  & \num{395.538} & \num{9.386} & \num{393.441} & \num{9.305} \\
+Seasonal var. &  &  &  &  &  &  & \num{0.000} &  \\
+Num.Param. & \num{6} &  & \num{9} &  & \num{5} &  & \num{6} &  \\
+Neg.Log.Lik. & \num{125093} &  & \num{121973} &  & \num{123234} &  & \num{123313} &  \\
+AIC & \num{250199} &  & \num{243965} &  & \num{246477} &  & \num{246638} &  \\
+\end{talltblr}
+}
+\end{table}
 
 \end{document}

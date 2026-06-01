@@ -15,9 +15,7 @@
 \usepackage{hyperref}
 \usepackage{float}
 \usepackage{booktabs}
-
-% Reduce spacing between figures and captions
-\setlength\abovecaptionskip{-10pt}
+\usepackage{makecell}
 
 \title{Final project for Time Series Analysis (20236)}
 \author{%
@@ -36,32 +34,33 @@ Arturs Janis Nikitins, Madelief van Weerdenburg
 
 \section{GISTEMP}
 
-Lorem Impsum
+Lorem ipsum
 
 
 \pagebreak
 \section{GHCN}
-In the second part of the report, we turn to the temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures and Dynamic Linear Models (DLMs).
+In the second part of the report, we turn to temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures and Dynamic Linear Models (DLMs). The question of importance is to what extent spatial correlation is informative for weather prediction.
 
 \subsection*{Data}
 
 We use GHCN data on the \textit{PASO ROBLES MUNI AP} (Paso Robles), \textit{SAN FRANCISCO DWTN} (San Francisco) and \textit{BAKER CITY AP} (Baker City) stations.
-\textbf{MORE ON THIS}The stations were selected for their geographical proximity to each other, providing an avenue for exploiting potential correlations, and data availability.
+The three stations were selected to have both a nearby pair and a distant comparison station.
+San Francisco and Paso Robles are separated by about \SI{283}{km}, while Baker City is much farther away, at about \SI{875}{km} and \SI{1046}{km}, respectively.
+This gives enough spatial variation to test whether a distance-based covariance structure captures stronger latent dependence for nearby stations and weaker dependence for distant stations.
 
-From the GHCN dataset, we select daily maximum temperatures recorded at each station from 1948-07-01 to 2024-12-31. We transform the recorded temperatures into centigrade.
+From the GHCN dataset, we select daily maximum temperatures recorded at each station from 1948-07-01 to 2024-12-31.
+We transform the recorded temperatures into Celsius.
 To ease seasonality adjustments, we omit observations for Feb 29.
-We subset the sample into a DLM estimation sample from 1948-07-01 to 2014-01-01 and a prediction evaluation sample from 2015-01-01 to 2024-12-31.
-Baker City has 30 missing observations for Sep 2001; however, this does not significantly impact our results as the Kalman filter is robust to missing observations and the missing dates are outside our evaluation window.
+We subset the sample into a DLM estimation sample from 1948-07-01 to 2014-12-31 and a prediction evaluation sample from 2015-01-01 to 2024-12-31.
+Baker City has 30 missing observations for Sep 2001; however, this is unlikely to materially affect our results as the Kalman filter is robust to missing observations and the missing block is outside our evaluation window.
 In the end, for each station we have \num{24274} daily observations for the training sample and \num{3650} observations for the evaluation sample.
 
-We calculate great-circle distances between each station.
-
-We deseasonalize the series at the station level by subtracting the average value for the corresponding day of the year from each observation.
+We deseasonalize the series at the station level by subtracting from each observation the average value for the corresponding day of the year in the training sample.
 Before subtracting the seasonal effects, the day-of-the-year averages are circularly smoothed with a 31-day moving average and demeaned.
 
 The seasonal effects and deseasonalized series are shown in Figure~\ref{fig:data}.
-Following conventional wisdom, summer months display higher average maximum temperatures than winter months.
-Paso Robles and Baker City exhibit greater seasonal variability (maximum temperatures are up to \SI{10}{}-\SI{15}{\celsius} lower in winter days and \SI{10}{}-\SI{15}{\celsius} higher in summer days than on average), while maximum temperatures in San Francisco vary only by \SI{5}{\celsius} from the average.
+As expected, summer months display higher average maximum temperatures than winter months.
+Paso Robles and Baker City exhibit greater seasonal variability (maximum temperatures are up to \SI{10}{}--\SI{15}{\celsius} lower in winter days and \SI{10}{}--\SI{15}{\celsius} higher in summer days than on average), while maximum temperatures in San Francisco vary only by \SI{5}{\celsius} from the average.
 After deseasonalization, Paso Robles has the warmest weather -- maximum temperatures vary between \SI{10}{} and \SI{40}{\celsius} with an average of around \SI{25}{\celsius}.
 San Francisco has an average maximum daily temperature of \SI{18}{\celsius}; most days have a maximum temperatures between \SI{10}{} and \SI{20}{\celsius} degrees, with a fatter tail surpassing \SI{30}{\celsius}.
 Baker City has the coldest but most varied weather: average maximum daily temperatures are \SI{15}{\celsius}, ranging from freezing temperatures to approaching \SI{30}{\celsius}.
@@ -70,12 +69,13 @@ Overall, the deseasonalized temperatures do not display any strong trends; thus,
 
 \begin{figure}[htbp]
 \centering
-\includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_3_files/figure-latex/plot_data-1}
+\setlength\abovecaptionskip{-10pt}
+\includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_data-1}
 \caption{Left: Day-of-year seasonal temperature effects. Right: Deseasonalized series (black) and 365-day rolling mean (red).}
 \label{fig:data}
 \end{figure}
 
-\subsection*{Models}
+\subsection*{Models and estimation}
 
 We compare four DLM specifications: three random walk plus noise models, with independent, free, and spatially-constrained state evolution dependence, and a random walk with a seasonal component and spatially-correlated state innovations.
 
@@ -91,33 +91,33 @@ Y_t &= \theta_t + v_t,
 & w_t &\sim \mathcal{N}_3(0,W),
 \end{aligned}
 \]
-where, in all models, the observation evolution covariance matrix is diagonal:
+where, in all models, the observation error covariance matrix is diagonal:
 \[
 V = \operatorname{diag}(\sigma^2_{v,1},\sigma^2_{v,2},\sigma^2_{v,3}).
 \]
 
 \subsubsection*{1: Independent random walk plus noise (Independent)}
 
-This model assumes that both observation errors and latent temperature innovations are independent across stations; thus, the state evolution covariance matrix is diagonal:
+This model assumes that both observation errors and latent temperature innovations are independent across stations; thus, the state innovation covariance matrix is diagonal:
 \[
 W = \operatorname{diag}(\sigma^2_{w,1},\sigma^2_{w,2},\sigma^2_{w,3}).
 \]
 
-\subsubsection*{2: Random walk with unrestricted evolution covariance (Full W)}
+\subsubsection*{2: Random walk with unrestricted error covariance (Full W)}
 
-This model allows the latent temperature levels of different stations to move together, but the dependence is estimated freely. The state evolution covariance matrix is unrestricted positive definite:
+This model allows the latent temperature levels of different stations to move together, but the dependence is estimated freely. The state innovation covariance matrix is unrestricted positive definite:
 \[
 W =
 \begin{pmatrix}
-\sigma^2_{w,11} & \sigma^2_{w,12} & \sigma^2_{w,13} \\
-\sigma^2_{w,21} & \sigma^2_{w,22} & \sigma^2_{w,23} \\
-\sigma^2_{w,31} & \sigma^2_{w,32} & \sigma^2_{w,33}
+\sigma^2_{w,11} & \sigma_{w,12} & \sigma_{w,13} \\
+\sigma_{w,21} & \sigma^2_{w,22} & \sigma_{w,23} \\
+\sigma_{w,31} & \sigma_{w,32} & \sigma^2_{w,33}
 \end{pmatrix}.
 \]
 
 \subsubsection*{3: Spatial random walk with distance-based covariance (Distance)}
 
-This model imposes the assumption that nearby stations should have more strongly correlated latent temperature innovations than distant stations. The state evolution covariance matrix is spatially structured:
+This model imposes the assumption that nearby stations should have more strongly correlated latent temperature innovations than distant stations. The state innovation covariance matrix is spatially structured:
 \[
 W_{jk}
 =
@@ -126,8 +126,8 @@ W_{jk}
 \sigma_w^2 \exp(-\phi d_{jk}),
 \qquad j,k=1,2,3,
 \]
-where \(d_{jk}\) is the great-circle distance between stations \(j\) and \(k\),
-\(\sigma_w^2>0\) is the marginal evolution variance, and \(\phi>0\) controls
+where \(d_{jk}\) is the great-circle distance between stations \(j\) and \(k\) measured in hundreds of km,
+\(\sigma_w^2>0\) is the marginal innovation variance, and \(\phi>0\) controls
 the rate at which dependence decays with distance.
 
 Equivalently,
@@ -192,20 +192,25 @@ W_\mu & 0 \\
 \]
 where the level innovation covariance \(W_\mu\) has a spatial structure as in Model 3, and \(\sigma_s^2>0\) controls the variability of the seasonal component.
 
+\subsubsection*{Estimation}
+
 The unknown parameters were estimated by maximum likelihood on the training sample.
-Variance and distance penalty parameters were constrained to be positive through log parametrization, while the unrestricted evolution covariance matrix was parametrized via Cholesky factorization.
+Variance and distance penalty parameters were constrained to be positive through log parametrization, while the unrestricted error covariance matrix was parametrized via Cholesky factorization.
 Initial variances and Cholesky parameters were set to unity, while, to ensure proper convergence, the distance penalty was re-estimated with initial values \(e^{-5}, e^{-8}, e^{-2}\), keeping the model with the largest likelihood.
 Standard errors were computed from the inverse Hessian and transformed to the reported scale using the delta method.
 
 Estimated parameters are reported in Table~\ref{tbl:params}.
 To aid interpretability, we report estimated correlations and additionally the half-correlation distance for distance-based-covariance models.
 
-The estimated level correlations are positive for all station pairs, confirming that the three stations do not evolve independently.
+The estimated level correlations are positive for all station pairs, suggesting that the three stations do not evolve independently.
 In the Full W model, the strongest latent dependence is between Paso Robles and San Francisco, while Baker City has weaker correlations with the California stations.
 This is consistent with the geography of the selected stations.
-The distance model imposes a more parsimonious spatial structure with an estimated half-correlation distance of about \SI{394}{}--\SI{396}{km}, implying that latent level shocks remain strongly correlated for nearby stations but decay with distance.
-The seasonal distance model estimates the seasonal innovation variance at effectively zero, giving almost the same fit as the distance model based on deseasonalized data.
-Therefore, in this application, explicit stochastic seasonality adds little to a deterministic annual structure.
+The distance model imposes a more parsimonious spatial structure with an estimated half-correlation distance of about \SI{395}{km}, implying that latent level shocks remain strongly correlated for nearby stations but decay with distance.
+The seasonal distance model estimates the seasonal innovation variance at effectively zero, giving a similar fit to the distance model based on deseasonalized data.
+Therefore, in this application, explicit stochastic seasonality adds little to a fixed annual harmonic.
+
+Some variance estimates are on or close to the boundary of the parameter space, most notably the Paso Robles observation variance in the Independent model and the seasonal innovation variance in the Seasonal distance model.
+These estimates should therefore be interpreted as approximately zero.
 
 \begin{table}[htbp]
 \centerline{
@@ -254,5 +259,80 @@ AIC & \num{250199} &  & \num{243965} &  & \num{246477} &  & \num{246638} &  \\
 \end{talltblr}
 }
 \end{table}
+
+\subsection*{Forecast evaluation and diagnostics}
+
+We evaluate the fitted models using one-step-ahead forecasts on the 2015--2024 evaluation sample.
+Predictive accuracy is summarized using the mean forecast error, mean absolute error (MAE), root mean squared forecast error (RMSFE), empirical \SI{95}{\percent} predictive interval coverage, and the joint negative log predictive density (NLPD), which is the average negative log multivariate one-step-ahead predictive density from the Kalman filter, \(-\frac{1}{T}\sum_{t=1}^T \log p(y_t\mid y_{1:t-1})\).
+Lower MAE, RMSFE and NLPD indicate better predictive performance, while coverage should be close to \SI{95}{\percent}.
+
+\begin{table}[htbp]
+\centering
+\caption{Average model forecast performance.}
+\label{tbl:perf_avg}
+\begin{tabular}{lrrrrrr}
+\toprule
+Model & Mean & MAE & RMSFE & Coverage & Joint NLPD & \makecell{Avg. absolute\\whitened corr.} \\
+\midrule
+Independent & 0.002 & 2.499 & 3.330 & 0.946 & 7.853 & 0.214 \\
+Full W & 0.002 & 2.520 & 3.327 & 0.946 & 7.743 & 0.062 \\
+Distance & 0.002 & 2.508 & 3.326 & 0.947 & 7.794 & 0.143 \\
+Seasonal distance & 0.002 & 2.505 & 3.326 & 0.947 & 7.795 & 0.143 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Table~\ref{tbl:perf_avg} shows that all models are effectively unbiased and have empirical coverage close to the nominal \SI{95}{\percent} level.
+Differences in point forecast accuracy are small: the Distance and Seasonal distance models have the lowest average RMSFE, but the gain over the Independent model is negligible.
+Thus, spatial dependence does not materially improve marginal point forecasts.
+
+The main gain from dependence appears instead in the joint predictive distribution.
+The Full W model has the lowest joint NLPD, followed by the Distance model.
+This means that allowing latent innovations to co-move improves the joint probabilistic fit, even though the average one-step-ahead point forecast errors remain very similar across models.
+The unrestricted covariance model also has the lowest AIC and negative log-likelihood in Table~\ref{tbl:params}, so by likelihood-based criteria it is the best empirical specification.
+
+Table~\ref{tbl:perf_avg} also gives a diagnostic for the value of modelling spatial dependence in the form of average absolute correlations of whitened forecast errors \(z_t = Q_t^{-1/2}(y_t - f_t)\).
+The Independent model leaves substantial residual correlation, while the Full W model reduces the average absolute residual correlation from 0.214 to 0.062.
+This suggests that the unrestricted state innovation covariance captures most of the contemporaneous dependence between stations.
+The Distance and Seasonal distance models improve on independence but leave more residual cross-correlation than Full W.
+This is the expected trade-off: the distance model is more interpretable and parsimonious, but the restriction that all correlations are determined by a single distance decay parameter is too rigid for these three stations.
+
+Figure~\ref{fig:qq} shows that the Gaussian assumption is only approximate.
+The central parts of the standardized forecast errors are close to normal, but the tails deviate visibly, especially for San Francisco and Paso Robles.
+This indicates that the models understate the frequency of extreme temperature deviations, an issue not solved by allowing for cross-station dependence.
+
+\begin{figure}[htbp]
+\centering
+\setlength\abovecaptionskip{-10pt}
+\includegraphics[width=1\linewidth]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_qq_comp-1}
+\caption{Quantile-quantile plots of standardized one-step-ahead forecast errors for the Independent and Full W models.}
+\label{fig:qq}
+\end{figure}
+
+Figure~\ref{fig:acf} shows remaining short-lag autocorrelation in the standardized forecast errors.
+In most cases, the first few autocorrelations are negative, meaning that the random-walk plus noise structure slightly over-adjusts after large daily shocks.
+The Full W model improves the cross-sectional dependence structure but does not remove this short-run serial dependence.
+A richer temporal model, such as an autoregressive disturbance component or a local linear trend with more structured short-run dynamics, could address this, but it would go beyond the scope of this report.
+
+\begin{figure}[htbp]
+\centering
+\setlength\abovecaptionskip{-10pt}
+\includegraphics[width=1\linewidth]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_acf_comp-1}
+\caption{Estimated autocorrelation functions of standardized one-step-ahead forecast errors for the Independent and Full W models.}
+\label{fig:acf}
+\end{figure}
+
+\subsection*{Conclusion}
+
+The results show that spatial dependence is informative, but mainly for joint probabilistic modelling rather than for practical point prediction.
+Average MAE and RMSFE are very similar across all four specifications: the best average RMSFE is 3.326 versus 3.330 for the independent model, a reduction of only about 0.1\%.
+For the multivariate forecast distribution, the Full W model has the best likelihood-based fit, the lowest joint NLPD, and the smallest residual cross-station correlations.
+The Full W model is therefore the best empirical model among those considered.
+
+Its drawback is that the covariance structure is estimated freely and does not directly use geographic information.
+The Distance model is less flexible but more interpretable: it is built on the assumption that nearby stations should have more strongly correlated latent temperature innovations, and it performs almost as well in RMSFE terms.
+The Seasonal distance model adds little relative to deterministic deseasonalization, since the estimated seasonal innovation variance is effectively zero and its forecast performance is almost identical to the Distance model.
+
+Overall, the evidence supports modelling cross-station dependence, but with limited gains for point prediction.
 
 \end{document}

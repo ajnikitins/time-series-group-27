@@ -36,7 +36,10 @@ library(tidyverse)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "67%")
 
-options(ggplot2.discrete.colour = scale_color_viridis_d)
+options(
+  ggplot2.discrete.colour = scale_color_viridis_d,
+  knitr.kable.NA = ''
+)
 
 set_theme(theme_classic(base_size = 7))
 update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
@@ -383,11 +386,10 @@ report_seas <- \(stations, dist) {
 
 ```{r model_fit}
 # Caching helper
-generate_model <- \(path, code, data_train, build, init_par, lower, ...) {
+generate_model <- \(path, code, data_train, build, init_par, ...) {
   model_path <- file.path(path, paste0(code, ".RDS"))
 
   if (generate_models | !file.exists(model_path)) {
-    # fit <- dlmMLE(y = data_train, build = build, parm = init_par, hessian = TRUE, lower = lower, upper = rep(Inf, length(init_par)))
     fit <- dlmMLE(y = data_train, build = build, parm = init_par, hessian = TRUE)
 
     saveRDS(fit, model_path)
@@ -400,42 +402,28 @@ generate_model <- \(path, code, data_train, build, init_par, lower, ...) {
 
 # Initial values
 init_indep <- rep(0, 2 * n_sttn)
-lower_indep <- rep(1e-8, 2 * n_sttn)
-
 init_full <- c(rep(0, n_sttn), rep(0, n_sttn*(n_sttn+1)/2))
-lower_full <- c(rep(1e-8, n_sttn), rep(-Inf, n_sttn*(n_sttn+1)/2))
-
 init_dist <- c(rep(0, n_sttn + 1), -5)
-lower_dist <- c(rep(1e-8, n_sttn + 1), 1e-8)
-
 init_seas <- c(rep(0, n_sttn + 2), -5)
-lower_seas <- c(rep(1e-8, n_sttn + 2), 1e-8)
-
 init_dist_ch_low <- c(init_dist[-length(init_dist)], -8)
-lower_dist_ch_low <- lower_dist
-
 init_dist_ch_high <- c(init_dist[-length(init_dist)], -2)
-lower_dist_ch_high <- lower_dist
-
 init_seas_ch_low <- c(init_seas[-length(init_seas)], -8)
-lower_seas_ch_low <- lower_seas
-
 init_seas_ch_high <- c(init_seas[-length(init_seas)], -2)
-lower_seas_ch_high <- lower_seas
 
 # Setup model infrastructure
 tbl_models_base <- tribble(
-  ~ family, ~ code,             ~ name,                     ~ init_par,         ~ lower_par,        ~ build,                                                    ~ flg_deseas, ~ report,
-  "indep",  "mod_indep",        "Independent",              init_indep,         lower_indep,        \(par) build_indep(par, n = n_sttn),                        TRUE,         report_indep(stations),
-  "full",   "mod_full",         "Full W",                   init_full,          lower_full,         \(par) build_full(par, n = n_sttn),                         TRUE,         report_full(stations),
-  "dist",   "mod_dist",         "Distance",                 init_dist,          lower_dist,         \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
-  "seas",   "mod_seas",         "Seasonal distance",        init_seas,          lower_seas,         \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn),
-  "dist",   "mod_dist_ch_low",  "Distance",                 init_dist_ch_low,   lower_dist_ch_low,  \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
-  "dist",   "mod_dist_ch_high", "Distance",                 init_dist_ch_high,  lower_dist_ch_high, \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
-  "seas",   "mod_seas_ch_low",  "Seasonal distance",        init_seas_ch_low,   lower_seas_ch_low,  \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn),
-  "seas",   "mod_seas_ch_high", "Seasonal distance",        init_seas_ch_high,  lower_seas_ch_high, \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn)
+  ~ family, ~ code,             ~ name,               ~ init_par,         ~ build,                                                    ~ flg_deseas, ~ report,
+  "indep",  "mod_indep",        "Independent",        init_indep,         \(par) build_indep(par, n = n_sttn),                        TRUE,         report_indep(stations),
+  "full",   "mod_full",         "Full W",             init_full,          \(par) build_full(par, n = n_sttn),                         TRUE,         report_full(stations),
+  "dist",   "mod_dist",         "Distance",           init_dist,          \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
+  "seas",   "mod_seas",         "Seasonal distance",  init_seas,          \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn),
+  "dist",   "mod_dist_ch_low",  "Distance",           init_dist_ch_low,   \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
+  "dist",   "mod_dist_ch_high", "Distance",           init_dist_ch_high,  \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
+  "seas",   "mod_seas_ch_low",  "Seasonal distance",  init_seas_ch_low,   \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn),
+  "seas",   "mod_seas_ch_high", "Seasonal distance",  init_seas_ch_high,  \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn)
 ) %>%
   mutate(
+    name = factor(name, levels = unique(name)),
     data_train = if_else(flg_deseas, list(ts_main_des_train), list(ts_main_train)),
     data = if_else(flg_deseas, list(ts_main_des), list(ts_main))
   )
@@ -443,7 +431,7 @@ tbl_models_base <- tribble(
 # Fit models only if flagged or models are missing
 tbl_models_fit_raw <- tbl_models_base %>%
   rowwise() %>%
-  mutate(fit = list(generate_model(model_path, code, data_train, build, init_par, lower_par))) %>%
+  mutate(fit = list(generate_model(model_path, code, data_train, build, init_par))) %>%
   ungroup()
 
 tbl_models_fit <- tbl_models_fit_raw %>%
@@ -560,6 +548,7 @@ tbl_forecasts <- tbl_filters %>%
       mutate(model = name, date = data_main$date, Q = Qt)
   }) %>%
   list_rbind() %>%
+  mutate(model = factor(model)) %>%
   filter(date >= eval_start) %>%
   rowwise() %>%
   pivot_longer(-c(model, date, Q), names_to = c("var", "station"), names_sep = "\\.", values_to = "value") %>%
@@ -569,6 +558,59 @@ tbl_forecasts <- tbl_filters %>%
     joint_nlpd = dmvnorm(f + res, mean = f, sigma = first(Q), log = TRUE),
     res_white = backsolve(chol(first(Q)), res, transpose = TRUE),
     .by = c(date, model))
+```
+
+
+```{r tbl_perf_indiv}
+# Model-station forecast performance
+tbl_forecast_perf_indiv <- tbl_forecasts %>%
+  nest(frcst = c(date, res, sd, f, res_std, joint_nlpd, res_white), .by = c(model, station)) %>%
+  rowwise() %>%
+  mutate(
+    mean = mean(frcst$res),
+    MAE = mean(abs(frcst$res)),
+    RMSFE = sqrt(mean(frcst$res^2)),
+    nlpd = -mean(frcst$joint_nlpd),
+    acf_1 = cor(frcst$res_std, lag(frcst$res_std), use = "complete.obs"),
+    acf_2 = cor(frcst$res_std, lag(frcst$res_std, 2), use = "complete.obs"),
+    coverage = mean(between(frcst$f + frcst$res, frcst$f-qnorm(1-0.05/2)*frcst$sd, frcst$f+qnorm(1-0.05/2)*frcst$sd))
+  ) %>%
+  ungroup()
+
+tbl_forecast_perf_indiv %>%
+  arrange(station) %>%
+  bind_rows(
+    summarize(.,
+      station = "Average",
+      across(c(mean, MAE, RMSFE, acf_1, acf_2, coverage), mean),
+      joint_NLPD = first(nlpd),
+      .by = model
+    )
+  ) %>%
+  select(Station = station, Model = model, Mean = mean, MAE, RMSFE, `ACF(1)` = acf_1, `ACF(2)` = acf_2, `Coverage` = coverage, `Joint NLPD` = joint_NLPD) %>%
+  knitr::kable(
+    digits = 3,
+    caption = "Model forecast performance\\label{tbl:perf_indiv}",
+    format = "latex", booktabs = T, linesep = c("", "", "", "\\addlinespace")
+  )
+```
+
+```{r tbl_perf_avg}
+# Model forecast performance
+tbl_forecast_perf_avg <- tbl_forecast_perf_indiv %>%
+  summarize(
+    across(c(mean, MAE, RMSFE, coverage), mean),
+    joint_NLPD = first(nlpd),
+    .by = model
+  )
+
+tbl_forecast_perf_avg %>%
+  select(Model = model, Mean = mean, MAE, RMSFE, Coverage = coverage, `Joint NLPD` = joint_NLPD) %>%
+  knitr::kable(
+    digits = 3,
+    caption = "Average model forecast performance\\label{tbl:perf_avg}",
+    format = "latex", booktabs = T, linesep = ""
+  )
 ```
 
 ```{r tbl_corr}
@@ -604,7 +646,7 @@ tbl_cross_corr %>%
   )
 ```
 
-```{r plot_eval_qq, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Quartile-quartile plots.\\label{fig:qq}"}
+```{r plot_eval_qq, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Quantile-quantile plots.\\label{fig:qq_full}"}
 # Forecast checking: QQ plots
 tbl_forecasts %>%
     ggplot(aes(sample = res_std)) +
@@ -613,7 +655,17 @@ tbl_forecasts %>%
     facet_grid(station ~ model)
 ```
 
-```{r plot_eval_acf, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Estimated autocorrelation functions.\\label{fig:acf}"}
+```{r plot_eval_qq_comp, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 2, out.width = "100%", fig.cap = "Quantile-quantile plots.\\label{fig:qq}"}
+# Forecast checking: QQ plots
+tbl_forecasts %>%
+    filter(model %in% c("Independent", "Full W")) %>%
+    ggplot(aes(sample = res_std)) +
+    geom_qq_line() +
+    geom_qq(shape = ".") +
+    facet_grid(model ~ station)
+```
+
+```{r plot_eval_acf, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "100%", fig.cap = "Estimated autocorrelation functions.\\label{fig:acf_full}"}
 # Forecast checking: ACFs
 tbl_forecasts %>%
     reframe(tidy(acf(res_std, lag.max = 60, plot = FALSE)), n = n(), .by = c(model, station)) %>%
@@ -632,46 +684,22 @@ tbl_forecasts %>%
     )
 ```
 
-```{r tbl_perf_indiv}
-# Model-station forecast performance
-tbl_forecast_perf_indiv <- tbl_forecasts %>%
-  nest(frcst = c(date, res, sd, f, res_std, joint_nlpd, res_white), .by = c(model, station)) %>%
-  rowwise() %>%
-  mutate(
-    mean = mean(frcst$res),
-    MAE = mean(abs(frcst$res)),
-    RMSFE = sqrt(mean(frcst$res^2)),
-    joint_NLPD = -mean(frcst$joint_nlpd),
-    acf_1 = cor(frcst$res_std, lag(frcst$res_std), use = "complete.obs"),
-    acf_2 = cor(frcst$res_std, lag(frcst$res_std, 2), use = "complete.obs"),
-    coverage = mean(between(frcst$f + frcst$res, frcst$f-qnorm(1-0.05/2)*frcst$sd, frcst$f+qnorm(1-0.05/2)*frcst$sd))
-  ) %>%
-  ungroup()
-
-tbl_forecast_perf_indiv %>%
-  arrange(station) %>%
-  select(Station = station, Model = model, Mean = mean, MAE, RMSFE, `ACF(1)` = acf_1, `ACF(2)` = acf_2, `Coverage` = coverage) %>%
-  knitr::kable(
-    digits = 3,
-    caption = "Individual model-station forecast performance\\label{tbl:perf_indiv}",
-    format = "latex", booktabs = T, linesep = ""
-  )
-```
-
-```{r tbl_perf_avg}
-# Model forecast performance
-tbl_forecast_perf_avg <- tbl_forecast_perf_indiv %>%
-  summarize(
-    across(c(mean, MAE, RMSFE, coverage), mean),
-    joint_NLPD = first(joint_NLPD),
-    .by = model
-  )
-
-tbl_forecast_perf_avg %>%
-  select(Model = model, Mean = mean, MAE, RMSFE, Coverage = coverage, `Joint NLPD` = joint_NLPD) %>%
-  knitr::kable(
-    digits = 3,
-    caption = "Average model forecast performance\\label{tbl:perf_avg}",
-    format = "latex", booktabs = T, linesep = ""
-  )
+```{r plot_eval_acf_comp, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 2, out.width = "100%", fig.cap = "Estimated autocorrelation functions.\\label{fig:acf}"}
+# Forecast checking: ACFs
+tbl_forecasts %>%
+    filter(model %in% c("Independent", "Full W")) %>%
+    reframe(tidy(acf(res_std, lag.max = 60, plot = FALSE)), n = n(), .by = c(model, station)) %>%
+    filter(lag > 0) %>%
+    mutate(ci = qnorm(1 - 0.05/2)/sqrt(n)) %>%
+    ggplot(aes(x = lag, y = acf)) +
+    geom_hline(yintercept = 0, color = "grey50") +
+    geom_segment(aes(xend = lag, yend = 0)) +
+    geom_hline(aes(yintercept = ci), linetype = "dashed") +
+    geom_hline(aes(yintercept = -ci), linetype = "dashed") +
+    facet_grid(model~station) +
+    scale_x_continuous(breaks = pretty_breaks()) +
+    labs(
+      x = "Lag (days)",
+      y = NULL
+    )
 ```

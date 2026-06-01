@@ -95,7 +95,7 @@ Artūrs Jānis Ņikitins, Madelief van Weerdenburg}
 
 \begin{figure}[H]
 
-{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_3_files/figure-latex/plot_data-1} 
+{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_data-1} 
 
 }
 
@@ -151,58 +151,31 @@ AIC & \num{250199} &  & \num{243965} &  & \num{246477} &  & \num{246638} &  \\
 
 \begin{table}
 
-\caption{\label{tab:tbl_corr}Residual cross-station correlations}
+\caption{\label{tab:tbl_perf_indiv}Model forecast performance\label{tbl:perf_indiv}}
 \centering
-\begin{tabular}[t]{lrrrr}
+\begin{tabular}[t]{llrrrrrrr}
 \toprule
-pair & Independent & Full W & Distance & Seasonal distance\\
+Station & Model & Mean & MAE & RMSFE & ACF(1) & ACF(2) & Coverage & Joint NLPD\\
 \midrule
-Baker City - Paso Robles & 0.186 & -0.043 & 0.118 & 0.119\\
-Baker City - San Francisco & 0.107 & 0.081 & -0.156 & -0.155\\
-Paso Robles - San Francisco & 0.350 & -0.063 & -0.154 & -0.154\\
-Average absolute & 0.214 & 0.062 & 0.143 & 0.143\\
-\bottomrule
-\end{tabular}
-\end{table}
-
-\begin{figure}[H]
-
-{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_3_files/figure-latex/plot_eval_qq-1} 
-
-}
-
-\caption{Quartile-quartile plots.\label{fig:qq}}\label{fig:plot_eval_qq}
-\end{figure}
-
-\begin{figure}[H]
-
-{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_3_files/figure-latex/plot_eval_acf-1} 
-
-}
-
-\caption{Estimated autocorrelation functions.\label{fig:acf}}\label{fig:plot_eval_acf}
-\end{figure}
-
-\begin{table}
-
-\caption{\label{tab:tbl_perf_indiv}Individual model-station forecast performance\label{tbl:perf_indiv}}
-\centering
-\begin{tabular}[t]{llrrrrrr}
-\toprule
-Station & Model & Mean & MAE & RMSFE & ACF(1) & ACF(2) & Coverage\\
-\midrule
-Baker City & Independent & 0.004 & 2.836 & 3.691 & -0.015 & -0.176 & 0.945\\
-Baker City & Full W & 0.005 & 2.822 & 3.665 & 0.054 & -0.177 & 0.948\\
-Baker City & Distance & 0.005 & 2.835 & 3.669 & 0.105 & -0.161 & 0.944\\
-Baker City & Seasonal distance & 0.005 & 2.829 & 3.670 & 0.105 & -0.160 & 0.945\\
-Paso Robles & Independent & 0.001 & 2.612 & 3.448 & 0.021 & -0.192 & 0.947\\
-Paso Robles & Full W & 0.001 & 2.607 & 3.421 & 0.147 & -0.188 & 0.946\\
-Paso Robles & Distance & 0.002 & 2.628 & 3.443 & 0.190 & -0.172 & 0.942\\
-Paso Robles & Seasonal distance & 0.002 & 2.627 & 3.444 & 0.190 & -0.171 & 0.941\\
-San Francisco & Independent & 0.000 & 2.050 & 2.851 & 0.097 & -0.231 & 0.947\\
-San Francisco & Full W & 0.001 & 2.130 & 2.895 & 0.231 & -0.193 & 0.945\\
-San Francisco & Distance & 0.000 & 2.060 & 2.864 & 0.053 & -0.253 & 0.955\\
-San Francisco & Seasonal distance & 0.000 & 2.060 & 2.865 & 0.053 & -0.253 & 0.955\\
+Baker City & Independent & 0.004 & 2.836 & 3.691 & -0.015 & -0.176 & 0.945 & \\
+Baker City & Full W & 0.005 & 2.822 & 3.665 & 0.054 & -0.177 & 0.948 & \\
+Baker City & Distance & 0.005 & 2.835 & 3.669 & 0.105 & -0.161 & 0.944 & \\
+Baker City & Seasonal distance & 0.005 & 2.829 & 3.670 & 0.105 & -0.160 & 0.945 & \\
+\addlinespace
+Paso Robles & Independent & 0.001 & 2.612 & 3.448 & 0.021 & -0.192 & 0.947 & \\
+Paso Robles & Full W & 0.001 & 2.607 & 3.421 & 0.147 & -0.188 & 0.946 & \\
+Paso Robles & Distance & 0.002 & 2.628 & 3.443 & 0.190 & -0.172 & 0.942 & \\
+Paso Robles & Seasonal distance & 0.002 & 2.627 & 3.444 & 0.190 & -0.171 & 0.941 & \\
+\addlinespace
+San Francisco & Independent & 0.000 & 2.050 & 2.851 & 0.097 & -0.231 & 0.947 & \\
+San Francisco & Full W & 0.001 & 2.130 & 2.895 & 0.231 & -0.193 & 0.945 & \\
+San Francisco & Distance & 0.000 & 2.060 & 2.864 & 0.053 & -0.253 & 0.955 & \\
+San Francisco & Seasonal distance & 0.000 & 2.060 & 2.865 & 0.053 & -0.253 & 0.955 & \\
+\addlinespace
+Average & Independent & 0.002 & 2.499 & 3.330 & 0.034 & -0.200 & 0.946 & 7.853\\
+Average & Full W & 0.002 & 2.520 & 3.327 & 0.144 & -0.186 & 0.946 & 7.743\\
+Average & Distance & 0.002 & 2.508 & 3.326 & 0.116 & -0.195 & 0.947 & 7.794\\
+Average & Seasonal distance & 0.002 & 2.505 & 3.326 & 0.116 & -0.195 & 0.947 & 7.795\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -222,5 +195,57 @@ Seasonal distance & 0.002 & 2.505 & 3.326 & 0.947 & 7.795\\
 \bottomrule
 \end{tabular}
 \end{table}
+
+\begin{table}
+
+\caption{\label{tab:tbl_corr}Residual cross-station correlations}
+\centering
+\begin{tabular}[t]{lrrrr}
+\toprule
+pair & Independent & Full W & Distance & Seasonal distance\\
+\midrule
+Baker City - Paso Robles & 0.186 & -0.043 & 0.118 & 0.119\\
+Baker City - San Francisco & 0.107 & 0.081 & -0.156 & -0.155\\
+Paso Robles - San Francisco & 0.350 & -0.063 & -0.154 & -0.154\\
+Average absolute & 0.214 & 0.062 & 0.143 & 0.143\\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_qq-1} 
+
+}
+
+\caption{Quantile-quantile plots.\label{fig:qq_full}}\label{fig:plot_eval_qq}
+\end{figure}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_qq_comp-1} 
+
+}
+
+\caption{Quantile-quantile plots.\label{fig:qq}}\label{fig:plot_eval_qq_comp}
+\end{figure}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_acf-1} 
+
+}
+
+\caption{Estimated autocorrelation functions.\label{fig:acf_full}}\label{fig:plot_eval_acf}
+\end{figure}
+
+\begin{figure}[H]
+
+{\centering \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_acf_comp-1} 
+
+}
+
+\caption{Estimated autocorrelation functions.\label{fig:acf}}\label{fig:plot_eval_acf_comp}
+\end{figure}
 
 \end{document}

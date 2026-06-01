@@ -16,7 +16,7 @@ header-includes:
 - \setlength{\textfloatsep}{6pt}
 - \setlength{\intextsep}{6pt}
 params:
-  n_sttn: 3
+  n_sttn: 2
 ---
 
 ```{r setup, include=FALSE}
@@ -46,9 +46,12 @@ set_theme(theme_classic(base_size = 7))
 update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
 
 stations <- if(params$n_sttn == 2) {
+  # c("AUGUSTA STATE AP" = "Augusta", "HOULTON AP" = "Houlton")
   c("PASO ROBLES MUNI AP" = "Paso Robles", "SAN FRANCISCO DWTN" = "San Francisco")
 } else if (params$n_sttn == 3) {
-  c("PASO ROBLES MUNI AP" = "Paso Robles", "PRESCOTT LOVE FLD" = "Prescott", "SAN FRANCISCO DWTN" = "San Francisco")
+  # c("PASO ROBLES MUNI AP" = "Paso Robles", "PRESCOTT LOVE FLD" = "Prescott", "SAN FRANCISCO DWTN" = "San Francisco")
+  c("BAKER CITY AP" = "Baker City", "PASO ROBLES MUNI AP" = "Paso Robles", "SAN FRANCISCO DWTN" = "San Francisco")
+  # c("AUGUSTA STATE AP" = "Augusta", "HOULTON AP" = "Houlton", "MARTINSBURG E W VIRGINIA RGNL" = "Martinsburg")
 } else stop("invalid station count")
 n_sttn <- params$n_sttn
 
@@ -56,7 +59,8 @@ eval_start <- "2015-01-01"
 
 generate_models <- FALSE
 
-model_path <- glue("models/{n_sttn}")
+model_path <- file.path("models", paste(names(stations), collapse = "_"))
+dir.create(model_path, showWarnings = FALSE)
 ```
 
 ```{r data}
@@ -75,25 +79,24 @@ data_sttn <- data_raw_full %>%
   mutate(min_date = min(date), max_date = max(date), .by = station) %>%
   distinct(ID, station, latitude, longitude, elevation, .keep_all = TRUE)
 
-# Use simple station names
-stations_note <- paste("Stations:", glue_collapse(glue('({stations}) = {names(stations)}'), sep = ', '))
-
 # Distance matrix
 data_dist_sttn <- data_sttn %>%
   filter(station %in% names(stations)) %>%
-  arrange(match(station, stations)) %>%
+  arrange(match(station, names(stations))) %>%
   select(longitude, latitude) %>%
-  distm() / 1000
+  distm() / 1000 / 100
 
 data_main_raw <- data_raw_full %>%
-  arrange(match(station, stations)) %>%
   filter(station %in% names(stations)) %>%
   select(station, date, TMAX) %>%
   # Recode stations
   mutate(station = recode_values(station, from = names(stations), to = stations)) %>%
+  arrange(match(station, stations)) %>%
   # Filter date ranges
   mutate(min_date = min(date), max_date = max(date), .by = station) %>%
   filter(between(date, max(min_date), min(max_date))) %>%
+  # Fill in missing dates
+  right_join(expand(., station, date = seq.Date(from = min(.$date), to = max(.$date), by = "day")), by = c("date", "station")) %>%
   select(-min_date, -max_date) %>%
   # Remove leap days
   filter(!(month(date) == 2 & day(date) == 29)) %>%
@@ -103,8 +106,15 @@ data_main_raw <- data_raw_full %>%
 # Seasonalize only on the training dataset
 data_seasonality <- data_main_raw %>%
   filter(date < eval_start) %>%
-  mutate(seasonal = get_seasonality(TMAX), .by = station) %>%
-  summarise(seasonal = mean(seasonal), .by = c(station, doy))
+  # mutate(seasonal = get_seasonality(TMAX, manual = TRUE), .by = station) %>%
+  # summarise(seasonal = mean(seasonal), .by = c(station, doy))
+  arrange(station, doy) %>%
+  summarise(seasonal_raw = mean(TMAX, na.rm = TRUE), .by = c(station, doy)) %>%
+  mutate(
+    seasonal_raw = seasonal_raw - mean(seasonal_raw),
+    seasonal = as.numeric(stats::filter(seasonal_raw, rep(1 / 31, 31), sides = 2, circular = TRUE)),
+    .by = station
+  )
 
 data_main_des_raw <- data_main_raw %>%
   left_join(data_seasonality, by = c("station", "doy")) %>%
@@ -231,127 +241,9 @@ build_seas <- \(u, n = 2, dist) {
 
   mod
 }
-```
-
-```{r model_fit}
-# Caching helper
-generate_model <- \(path, code, data_train, build, init_par) {
-  model_path <- file.path(path, paste0(code, ".RDS"))
-
-  if (generate_models | !file.exists(model_path)) {
-    fit <- dlmMLE(y = data_train, build = build, parm = init_par, hessian = TRUE)
-
-    saveRDS(fit, model_path)
-  } else {
-    fit <- readRDS(model_path)
-  }
-
-  fit
-}
-
-# Initial values
-init_indep <- rep(0, 2 * n_sttn)
-init_full <- rep(0, n_sttn*(n_sttn+3)/2)
-init_dist <- c(rep(0, n_sttn + 1), -5)
-init_seas <- c(rep(0, n_sttn + 2), -5)
-init_dist_ch_low <- c(rep(0, n_sttn + 1), -8)
-init_dist_ch_high <- c(rep(0, n_sttn + 1), -2)
-init_seas_ch_low <- c(rep(0, n_sttn + 2), -8)
-init_seas_ch_high <- c(rep(0, n_sttn + 2), -2)
-
-# Setup model infrastructure
-tbl_models_base <- tibble(
-  code = c(
-    "mod_indep", "mod_full", "mod_dist", "mod_seas",
-    "mod_dist_ch_low", "mod_dist_ch_high", "mod_seas_ch_low", "mod_seas_ch_high"
-  ),
-  name = factor(c(
-    "Independent", "Full W", "Distance", "Seasonal distance",
-    "Distance (low)", "Distance (high)", "Seasonal distance (low)", "Seasonal distance (high)"
-  )),
-  init_par = list(
-    init_indep, init_full, init_dist, init_seas,
-    init_dist_ch_low, init_dist_ch_high, init_seas_ch_low, init_seas_ch_high
-  ),
-  build = list(
-    \(par) build_indep(par, n = n_sttn),
-    \(par) build_full(par, n = n_sttn),
-    \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),
-    \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),
-    \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),
-    \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),
-    \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),
-    \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn)
-  ),
-  flg_deseas = c(
-    TRUE, TRUE, TRUE, FALSE,
-    TRUE, TRUE, FALSE, FALSE
-  ),
-  data_train = if_else(flg_deseas, list(ts_main_des_train), list(ts_main_train)),
-  data = if_else(flg_deseas, list(ts_main_des), list(ts_main))
-)
-
-# Fit models only if flagged or models are missing
-tbl_models_fit <- tbl_models_base %>%
-  rowwise() %>%
-  mutate(fit = list(generate_model(model_path, code, data_train, build, init_par))) %>%
-  ungroup()
-
-pwalk(tbl_models_fit, \(name, fit, ...) {
-  if (fit$convergence) warning(glue::glue("Model {name} did not converge!"))
-})
-```
-
-```{r model_param_calibr, eval = FALSE}
-# Ad-hoc checking of MLE fit
-# Compare LL across different parameter values
-# Untested parameters set to MLE
-
-set_theme(theme_classic(base_size = 12))
-mirai::daemons(12)
-
-calibr_range <- seq(from = -20, to = 10, by = 0.5)
-
-def_par <- tbl_models_fit %>%
-  rowwise() %>%
-  reframe(model = name, par = seq_along(fit$par), def = fit$par, init = init_par)
-
-tbl_models_calibr <- tbl_models_fit %>%
-  pmap_dfr(\(name, fit, build, data_train, ...) {
-    imap_dfr(fit$par, \(x, i) {
-      y <- map_dbl(calibr_range,
-        in_parallel(
-          \(n) {
-            library(dlm)
-
-            par_iter <- par
-            par_iter[i] <- n
-            dlmLL(data_train, build(par_iter))
-          },
-          i = i, par = fit$par, build = build, data_train = data_train, n_sttn = n_sttn, data_dist_sttn = data_dist_sttn,
-          build_base = build_base, build_indep = build_indep, build_full = build_full, build_dist = build_dist, build_seas = build_seas
-        )
-      )
-
-      tibble(model = name, par = i, x = calibr_range, y = y)
-    })
-  })
-
-tbl_models_calibr %>%
-  left_join(def_par, by = c("model", "par")) %>%
-  filter(between(x, pmin(def, init)-0.5, pmax(def, init)+0.5), .by = model) %>%
-  ggplot(aes(x = x, y = y)) +
-  geom_line() +
-  ggh4x::facet_grid2(model ~ par, scales = "free", independent = "all") +
-  geom_vline(data = def_par, aes(xintercept = init, color = "Initial")) +
-  geom_vline(data = def_par, aes(xintercept = def, color = "Fitted"))
-```
-
-```{r model_params}
 
 # Helper for inverting the hessian to get a var-covar estimate
 vcov_mle <- \(fit) {
-  browser()
   H <- (fit$hessian + t(fit$hessian)) / 2
   vcov_mle <- (solve(H) + t(solve(H))) / 2
 }
@@ -444,13 +336,12 @@ report_dist <- \(stations, dist) {
       setNames(obs_var, paste0("obs_var: ", stations)),
       common_level_var = level_var,
       phi = phi,
-      corr_half_distance_km = log(2) / phi
+      corr_half_distance_km = log(2) / phi * 100
     )
 
     if (nrow(pair) > 0) {
       out <- c(
         out,
-        # setNames(W[pair], paste0("level_cov: ", stations[pair[, 2]], " - ", stations[pair[, 1]])),
         setNames(R[pair], paste0("level_corr: ", stations[pair[, 2]], " - ", stations[pair[, 1]]))
       )
     }
@@ -478,13 +369,12 @@ report_seas <- \(stations, dist) {
       common_level_var = level_var,
       seasonal_var = seas_var,
       phi = phi,
-      corr_half_distance_km = if (log(2) / phi > 1e6) NA else log(2) / phi
+      corr_half_distance_km = log(2) / phi * 100
     )
 
     if (nrow(pair) > 0) {
       out <- c(
         out,
-        # setNames(W_level[pair], paste0("level_cov: ", stations[pair[, 2]], " - ", stations[pair[, 1]])),
         setNames(R[pair], paste0("level_corr: ", stations[pair[, 2]], " - ", stations[pair[, 1]]))
       )
     }
@@ -492,6 +382,124 @@ report_seas <- \(stations, dist) {
     out
   }
 }
+```
+
+```{r model_fit}
+# Caching helper
+generate_model <- \(path, code, data_train, build, init_par, lower, ...) {
+  model_path <- file.path(path, paste0(code, ".RDS"))
+
+  if (generate_models | !file.exists(model_path)) {
+    # fit <- dlmMLE(y = data_train, build = build, parm = init_par, hessian = TRUE, lower = lower, upper = rep(Inf, length(init_par)))
+    fit <- dlmMLE(y = data_train, build = build, parm = init_par, hessian = TRUE)
+
+    saveRDS(fit, model_path)
+  } else {
+    fit <- readRDS(model_path)
+  }
+
+  fit
+}
+
+# Initial values
+init_indep <- rep(0, 2 * n_sttn)
+lower_indep <- rep(1e-8, 2 * n_sttn)
+
+init_full <- c(rep(0, n_sttn), rep(0, n_sttn*(n_sttn+1)/2))
+lower_full <- c(rep(1e-8, n_sttn), rep(-Inf, n_sttn*(n_sttn+1)/2))
+
+init_dist <- c(rep(0, n_sttn + 1), -5)
+lower_dist <- c(rep(1e-8, n_sttn + 1), 1e-8)
+
+init_seas <- c(rep(0, n_sttn + 2), -5)
+lower_seas <- c(rep(1e-8, n_sttn + 2), 1e-8)
+
+init_dist_ch_low <- c(init_dist[-length(init_dist)], -8)
+lower_dist_ch_low <- lower_dist
+
+init_dist_ch_high <- c(init_dist[-length(init_dist)], -2)
+lower_dist_ch_high <- lower_dist
+
+init_seas_ch_low <- c(init_seas[-length(init_seas)], -8)
+lower_seas_ch_low <- lower_seas
+
+init_seas_ch_high <- c(init_seas[-length(init_seas)], -2)
+lower_seas_ch_high <- lower_seas
+
+# Setup model infrastructure
+tbl_models_base <- tribble(
+  ~ family, ~ code,             ~ name,                     ~ init_par,         ~ lower_par,        ~ build,                                                    ~ flg_deseas, ~ report,
+  "indep",  "mod_indep",        "Independent",              init_indep,         lower_indep,        \(par) build_indep(par, n = n_sttn),                        TRUE,         report_indep(stations),
+  "full",   "mod_full",         "Full W",                   init_full,          lower_full,         \(par) build_full(par, n = n_sttn),                         TRUE,         report_full(stations),
+  "dist",   "mod_dist",         "Distance",                 init_dist,          lower_dist,         \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
+  "seas",   "mod_seas",         "Seasonal distance",        init_seas,          lower_seas,         \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn),
+  "dist",   "mod_dist_ch_low",  "Distance",                 init_dist_ch_low,   lower_dist_ch_low,  \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
+  "dist",   "mod_dist_ch_high", "Distance",                 init_dist_ch_high,  lower_dist_ch_high, \(par) build_dist(par, n = n_sttn, dist = data_dist_sttn),  TRUE,         report_dist(stations, data_dist_sttn),
+  "seas",   "mod_seas_ch_low",  "Seasonal distance",        init_seas_ch_low,   lower_seas_ch_low,  \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn),
+  "seas",   "mod_seas_ch_high", "Seasonal distance",        init_seas_ch_high,  lower_seas_ch_high, \(par) build_seas(par, n = n_sttn, dist = data_dist_sttn),  FALSE,        report_seas(stations, data_dist_sttn)
+) %>%
+  mutate(
+    data_train = if_else(flg_deseas, list(ts_main_des_train), list(ts_main_train)),
+    data = if_else(flg_deseas, list(ts_main_des), list(ts_main))
+  )
+
+# Fit models only if flagged or models are missing
+tbl_models_fit_raw <- tbl_models_base %>%
+  rowwise() %>%
+  mutate(fit = list(generate_model(model_path, code, data_train, build, init_par, lower_par))) %>%
+  ungroup()
+
+tbl_models_fit <- tbl_models_fit_raw %>%
+  slice_min(map_dbl(fit, "value"), n = 1, by = family)
+
+pwalk(tbl_models_fit, \(name, fit, ...) {
+  if (fit$convergence) warning(glue::glue("Model {name} did not converge!"))
+})
+```
+
+```{r model_param_calibr, eval = FALSE}
+# Ad-hoc checking of MLE fit
+# Compare LL across different parameter values
+# Untested parameters set to MLE
+
+set_theme(theme_classic(base_size = 12))
+mirai::daemons(12)
+
+calibr_range <- seq(from = -20, to = 10, by = 0.5)
+
+def_par <- tbl_models_fit %>%
+  rowwise() %>%
+  reframe(model = name, par = seq_along(fit$par), def = fit$par, init = init_par)
+
+tbl_models_calibr <- tbl_models_fit %>%
+  pmap_dfr(\(name, fit, build, data_train, ...) {
+    imap_dfr(fit$par, \(x, i) {
+      y <- map_dbl(calibr_range,
+        in_parallel(
+          \(n) {
+            library(dlm)
+
+            par_iter <- fit$par
+            par_iter[i] <- n
+            dlmLL(data_train, build(par_iter))
+          },
+          i = i, fit = fit, build = build, data_train = data_train, n_sttn = n_sttn, data_dist_sttn = data_dist_sttn,
+          build_base = build_base, build_indep = build_indep, build_full = build_full, build_dist = build_dist, build_seas = build_seas
+        )
+      )
+
+      tibble(model = name, par = i, x = calibr_range, y = y)
+    })
+  })
+
+tbl_models_calibr %>%
+  left_join(def_par, by = c("model", "par")) %>%
+  filter(between(x, pmin(def, init)-0.5, pmax(def, init)+0.5), .by = model) %>%
+  ggplot(aes(x = x, y = y)) +
+  geom_line() +
+  ggh4x::facet_grid2(model ~ par, scales = "free", independent = "all") +
+  geom_vline(data = def_par, aes(xintercept = init, color = "Initial")) +
+  geom_vline(data = def_par, aes(xintercept = def, color = "Fitted"))
 ```
 
 ```{r tbl_params}
@@ -504,11 +512,6 @@ gof_map_dlm <- tribble(
 )
 
 param_list <- tbl_models_fit %>%
-  mutate(report = c(
-    report_indep(stations), report_full(stations), report_dist(stations, data_dist_sttn), report_seas(stations, data_dist_sttn),
-    report_dist(stations, data_dist_sttn), report_dist(stations, data_dist_sttn), report_seas(stations, data_dist_sttn), report_seas(stations, data_dist_sttn)
-  )) %>%
-  filter(str_detect(code, "dist")) %>%
   pmap(\(name, fit, report, ...) {
     list(
       tidy = delta_meth(fit, report, model = name),
@@ -520,7 +523,7 @@ param_list <- tbl_models_fit %>%
     ) %>%
       magrittr::set_class("modelsummary_list")
   }) %>%
-  set_names(tbl_models$name)
+  set_names(tbl_models_fit$name)
 
 modelsummary(
   param_list,
@@ -543,7 +546,8 @@ modelsummary(
 
 ```{r model_eval}
 # Filtering
-tbl_filters <- tbl_model_fit %>%
+tbl_filters <- tbl_models_fit %>%
+  rowwise() %>%
   mutate(model = list(build(fit$par))) %>%
   mutate(filter = list(dlmFilter(data, model))) %>%
   ungroup()

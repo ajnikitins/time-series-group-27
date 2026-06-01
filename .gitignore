@@ -57,7 +57,10 @@ rsconnect/
 .vdoc.*
 *.html
 *.aux
-*.tex
+# *.tex
+*.fdb_latexmk
+*.fls
+*.synctex.gz
 *.csv
 .DS_Store
 .positai

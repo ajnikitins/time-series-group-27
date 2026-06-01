@@ -4,6 +4,7 @@ subtitle: "Bocconi University - 20236 Time Series Analysis \\linebreak Group 27 
   Madelief van Weerdenburg"
 output:
   pdf_document:
+    keep_tex: true
     latex_engine: xelatex
     fig_caption: true
     extra_dependencies:
@@ -20,13 +21,6 @@ params:
 ---
 
 ```{r setup, include=FALSE}
-# Read params
-if (interactive() && identical(Sys.getenv("POSITRON"), "1")) {
-  params <- rmarkdown::yaml_front_matter(
-    rstudioapi::getSourceEditorContext()$path
-  )$params
-}
-
 library(dlm)
 library(patchwork)
 library(tsibble)

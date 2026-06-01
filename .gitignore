@@ -61,6 +61,7 @@ rsconnect/
 *.fdb_latexmk
 *.fls
 *.synctex.gz
+*.out
 *.csv
 .DS_Store
 .positai

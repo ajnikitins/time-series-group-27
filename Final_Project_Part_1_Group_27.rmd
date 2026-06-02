@@ -18,9 +18,15 @@ header-includes:
 
 ```{r setup, include=FALSE}
 rm(list = ls())
-library(tidyverse)
 library(dlm)
+library(ggplot2)
+library(tseries)
+library(forecast)
+library(lmtest)
+library(sandwich)
 library(patchwork)
+library(depmixS4)
+library(tidyverse)
 
 knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "67%")
 
@@ -28,10 +34,309 @@ set_theme(theme_classic())
 update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
 ```
 
-```{r data}
+```{r}
 df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
 monthly_matrix <- as.matrix(df[, 2:13])
 monthly_vector <- as.numeric(t(monthly_matrix))
 
-gistemp_ts_raw <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
+gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
+
+stl_decomp <- stl(gistemp_ts, s.window = "periodic")
+residual <- stl_decomp$time.series[,"remainder"]
+
+## tests
+# dickey fuller
+adf.test(gistemp_ts)
+
+
+# White test
+bptest(lm(residual ~ time(gistemp_ts)))
+```
+# Data exploration
+
+```{r, fig.width=9, fig.height=9, fig.cap="Monthly Northern Hemisphere temperature anomalies"}
+data_temp <- tibble(x = time(gistemp_ts), y = gistemp_ts)
+
+ggplot(data_temp, aes(x, y)) + geom_line() + geom_hline(yintercept = 0) + labs(x = NULL, y = "Temperature anomalies (°C)")
+```
+
+Gistemp, which is presented in Figure 1, shows the monthly evolution of temperature anomalies recorded in the northern hemisphere from 1880 to 2025. A quick visual inspection makes immediately evidences the presence of a long-run upward trend whose effect remained contained and fluctuating during the late 19th and most of the 20th century, and accelerated markedly from the 1990's. In particular, a temporary stabilization is visible around the mid-20th century, with a relatively flatter slope between 1940 and 1970 suggesting a slowdown.
+
+While the dispersion does not appear to increase with the mean, we ran a White test for heteroskedasticity, which rejects the null. Since the series contains negative anomalies, we prefer to impose an additive structure to the series, whereby the various components interact additively with one another, and account for heteroskedasticity later for inference tasks. To inspect the non-stationary quality of the series, we thus use the Loess algorithm to identify the trend, seasonal and irregular components, as evidenced in figure 2.
+
+```{r}
+plot_multi_ts_gg <- function(x,
+                             title = NULL,
+                             theme_fn = theme_bw,
+                             wrap_width = 45) {
+  df <- data.frame(
+    Time = as.numeric(time(x)),
+    as.data.frame(x)
+  )
+
+  df_long <- pivot_longer(
+    df,
+    cols = -Time,
+    names_to = "Series",
+    values_to = "Value"
+  )
+
+  ggplot(df_long, aes(Time, Value)) +
+    geom_line() +
+    facet_wrap(~ Series,
+               ncol = 1,
+               scales = "free_y") +
+    labs(
+      title = title,
+      x = "Time",
+      y = NULL
+    ) +
+    theme_fn() +
+    theme(
+      plot.title = element_text(hjust = 0.5),
+      strip.background = element_blank()
+    )
+}
+
+# old helper used back in feb
+# probs needs to be changed
+```
+
+
+```{r, fig.width=6, fig.height=4, fig.cap="Seasonal pattern across subsets (20 years each"}
+
+stl_fit <- stl(gistemp_ts, s.window = "periodic")
+
+trend <- stl_decomp$time.series[, "trend"]
+seasonal <- stl_decomp$time.series[, "seasonal"]
+residual <- stl_decomp$time.series[, "remainder"]
+
+N <- length(gistemp_ts) # 1752
+
+subset_maker <- function(size) {
+  n_subsets <- floor(N / size)
+  lapply(1:n_subsets, function(i) {
+    start <- (i - 1) * size + 1
+    end <- if (i == n_subsets) N else i * size
+    ts(gistemp_ts[start:end], frequency = 12, start = start(gistemp_ts)[1] + (i-1)*size/12)
+  })
+}
+
+subs_list <- subset_maker(240)
+
+
+
+
+
+stl_decomp <- stl(gistemp_ts, s.window = "periodic")
+
+stl_df <- data.frame(
+  time = time(gistemp_ts),
+  observed = as.numeric(gistemp_ts),
+  trend = stl_decomp$time.series[, "trend"],
+  residual = stl_decomp$time.series[, "remainder"]
+)
+
+seasonal_list <- lapply(subs_list, function(sub) {
+  stl(sub, s.window = "periodic")$time.series[, "seasonal"]
+})
+
+seasonal_patterns <- sapply(seasonal_list, function(s) s[1:12]) # random choice
+
+seasonal_df <- as.data.frame(seasonal_patterns)
+seasonal_df$Month <- 1:12
+
+seasonal_long <- seasonal_df %>%
+  pivot_longer(
+    cols = -Month,
+    names_to = "Subset",
+    values_to = "Seasonal_effect"
+  )
+
+ggplot(seasonal_long, aes(x = Month, y = Seasonal_effect, group = Subset)) +
+  geom_line() +
+  scale_x_continuous(breaks = 1:12) +
+  labs(
+    x = "Month",
+    y = "Seasonal effect",
+    title = "Seasonal patterns across subsets"
+  ) +
+  theme_classic()
+
+
+```
+
+The decomposition makes our earlier observation about the changing slope of the trend concrete
+The annual cycle indicates late summer months characterized by negative seasonal effects, and fall/winter months that contribute positively to the recording of temperature anomalies. This may indicate that global warmnig has primarily manifested via less frigid winters rather than via significantly hotter summers.
+Expectedly, the residuals appear to be devoid of any structure, centered at zero and with constant variance.
+
+We have also repeated the analysis by considering a subsample that is more indicative of the most recent period of accelerated incurrence of anomalies, as it spans from 1975 to the present day.
+Our considerations appear robust to this change.
+
+```{r}
+
+residual <- stl_decomp$time.series[,"remainder"]
+seasonal <- stl_decomp$time.series[,"seasonal"]
+
+plot(seasonal)
+pacf(residual)
+acf(residual)
+
+```
+
+Considering this smaller sample, we may also determine the structure of the supposedly stationary, residual component. In particular, we compute the ac.f and partial ac.f of this time series, and conclude that it presents both MA and AR components, though identification would require numerical methods.
+
+# Evidence for global warming
+As we have commented, the observed series of temperature anomalies evolves in a complex manner through time, as periods of rapid acceleration follow others of relative calm, seasonal patterns are nonlinear, and changes can be sudden and unprecedented. For this reason, we may use standard time series analysis tools to make a case for the existence of global warming, that is, for an overall, long-run positive trend in observed anomalies.
+
+We may do this by considering simple state-space models, whereby we distinguish between an observed process $$Y_t$$ and a latent state process $$\theta_t$$. We assume that $$\theta_t$$ has the Markov dependence property, that the $$Y_t$$'s are mutually independent conditional on the latent process, and that $$Y_t$$ depends only on $$\theta_t$$. Then, we consider two cases: either the latent process is a discrete-valued random variable, in which case we construct a hidden Markov model, or it evolves smoothly over time.
+
+Evidently, the construction of the HMM requires us to identify a parametric emission model and the number of finite latent states and a parametric emission model. With regards to the first task, we assume that the conditional distribution of the observations is Gaussian, with parameteters $$Y_t \mid \theta_t = j \sim \mathcal{N}(\mu_j, \sigma^2_j) \quad \forall j$$. As for the assessment of the appropriate number of latent regimes, we estimate models with 2 to 8 states and compare them via log-likelihood and the standard IC.
+
+```{r}
+
+
+n_states <- 2:8
+aic_vals <- numeric(length(n_states))
+bic_vals <- numeric(length(n_states))
+loglik_vals <- numeric(length(n_states))
+
+for (i in seq_along(n_states)) {
+  mod <- depmix(gistemp_ts ~ 1, data = data.frame(y = as.numeric(gistemp_ts)), nstates = n_states[i])
+  fmod <- fit(mod, verbose = FALSE)
+  aic_vals[i] <- AIC(fmod)
+  bic_vals[i] <- BIC(fmod)
+  loglik_vals[i] <- logLik(fmod)
+}
+
+ic_df <- data.frame(
+  State = rep(n_states, 3),
+  value = c(aic_vals, bic_vals, loglik_vals),
+  indicator = rep(c("AIC", "BIC", "logLik"), each = length(n_states))
+)
+
+ggplot(ic_df, aes(x = State, y = value, color = indicator)) +
+  geom_line() +
+  scale_color_manual(values = c("AIC" = "red", "BIC" = "green", "logLik" = "blue")) +
+  theme_classic() +
+  labs(x = "State", y = NULL)
+
+
+# as in assignment 3, we exclude the models with the fewest and most states, and make final decision based on decoded seq. then one just iterates 3 times same code
+plots_list <- list()
+for (k in c(4, 5, 6)) {
+  mod <- depmix(gistemp_ts ~ 1, data = data.frame(y = as.numeric(gistemp_ts)), nstates = k)
+  fmod <- fit(mod, verbose = FALSE)
+
+  est_states <- posterior(fmod)$state
+  # for the h_lines as in assignment 3
+  state_means <- sapply(1:k, function(s) fmod@response[[s]][[1]]@parameters$coefficients)
+
+  # plotting
+  df <- data.frame(
+    time  = as.numeric(time(gistemp_ts)),
+    value = as.numeric(gistemp_ts),
+    state = factor(est_states)
+  )
+  means_df <- data.frame(
+    state     = factor(1:k),
+    state_mean = state_means
+  )
+
+  p <- ggplot(df, aes(x = time, y = value, color = state)) +
+    geom_point(size = 0.8, alpha = 0.7) +
+    geom_hline(data = means_df, aes(yintercept = state_mean, color = state)) +
+    labs(title = paste(k, "states"), x = NULL, y = "Temperature anomalies (°C)") +
+    theme_minimal() +
+    theme(legend.position = "none")
+
+  plots_list[[as.character(k)]] <- p
+}
+
+wrap_plots(
+  plots_list[["4"]],
+  plots_list[["5"]],
+  plots_list[["6"]],
+  nrow = 1,
+  guides = "collect"
+)
+
+
+
+```
+
+Figure 3 includes both IC values for HMM specifications with different numbers of states, and the decoded sequence of hidden states associated to 3 model specifications.
+Figure 3a indicates that models with 2-3 states perform poorly, while BIC and log-likelihood plateaus for models with 5/6 states. Hence we inspect the decoded sequences of hidden states associated to the three model specifications, per Figure 3. While model selection is subjective, we believe that the 5-states model is to be preferred, as it lacks both the fequent regime switching that characterizes the 4-states model, and the potential overspecification induced by the inclusion of a sixth state.
+
+The general problem with the HMM approach is, as Figure 3 makes evident, that the state process primarily tracks the upward trend, and does not allow a value-adding interpretation of the state process as characterized by a distinct number of regimes, such as more or less anomalous, stable or chaotic.
+
+While it is possible to partially obviate this problem by considering subsamples that are less dominated by the most recent, aggressive upward trend, the fundamental problem of applying HMMs to this series would remain: $$\theta_t$$ is a continuously evolving trend, and forcing a strict, discrete categorization, while tidy, is incapable of explanation.
+
+For this reason, we may turn to dynamic linear models, whereby the state process is assumed to evolve continuosly according to a Gaussian distribution. We consider a local linear trend model, as it allows both level and slope to evolve. In particular, we present the full time series as the additive result of two three components: $$Y_t = Y_t^{1}+Y_t^{2}+Y_t^{3}$$ where the first component indicates the trend; the second seasonality; the third the residual. We then fit one DLM to each component, and then analyze the aggregate DLM.
+
+```{r}
+set.seed(88888)
+fit_trend <- dlmMLE(trend, parm = c(0.1, 0.01, 0.01), # random non zero starting values
+  build = function(p) {
+    dlmModPoly(2, dV = exp(p[1]), dW = exp(p[2:3]))
+    }
+  )
+
+fit_seas <- dlmMLE(seasonal, parm = c(0.1, -10),
+  build = function(p) {
+    dlmModSeas(
+      12, # the cycle components
+      dV = exp(p[1]),
+      dW = rep(exp(p[2]), 11) # one var instead of 11 different ones (11 df's). i dont wanna set dW = 0 because of the analysis i ran earlier. to compensate, see the very low starting value above.
+    )
+  }
+)
+
+fit_residual <- dlmMLE(residual, parm = c(0.1, 0.01), build = function(p) {
+  dlmModPoly(1, dV = exp(p[1]), dW = exp(p[2])) # rw + noise
+}
+)
+
+# create different model for each component
+mod_trend  <- dlmModPoly(2, dV = exp(fit_trend$par[1]),  dW = exp(fit_trend$par[2:3]))
+mod_seas <- dlmModSeas(
+  12,
+  dV = exp(fit_seas$par[1]),
+  dW = rep(exp(fit_seas$par[2]), 11)
+)
+mod_residual  <- dlmModPoly(1, dV = exp(fit_residual$par[1]), dW = exp(fit_residual$par[2]))
+
+# aggregate
+aggr_mod <- mod_trend + mod_seas + mod_residual
+
+# i think we wanna do smoothing
+smooth_total <- dlmSmooth(gistemp_ts, mod = aggr_mod)
+smooth_level <- dropFirst(smooth_total$s[, 1]) # because of the prior
+smooth_slope <- dropFirst(smooth_total$s[, 2])
+time_index <- time(gistemp_ts)
+
+plot(time_index, smooth_slope,
+     type = "l",
+     xlab = "Year",
+     ylab = "Smoothed trend slope",
+     main = "Estimated warming rate over time")
+abline(h = 0, lty = 2)
+
+# this is disappointing
+
+
+
+seas_start <- 3
+seas_end <- 13
+
+trend_level <- dropFirst(smooth_total$s[, 1])
+trend_slope <- dropFirst(smooth_total$s[, 2])
+seasonal_states <- dropFirst(smooth_total$s[, seas_start:seas_end])
+
+plot(time_index, trend_level,
+     type = "l",
+     xlab = "Year",
+     ylab = "Trend level",
+     main = "Smoothed long-run temperature anomaly trend")
+
 ```

@@ -16,6 +16,7 @@
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{makecell}
+\usepackage{threeparttable}
 
 \title{Final project for Time Series Analysis (20236)}
 \author{%
@@ -30,16 +31,232 @@ Arturs Janis Nikitins, Madelief van Weerdenburg
 \begin{document}
 \maketitle
 % \pagebreak
-
+\textbf{Scientific question.} We ask whether monthly Northern Hemisphere GISTEMP anomalies document global warming, and compare a discrete-regime HMM summary with continuous latent-trend DLMs.
 
 \section{GISTEMP}
 
-Lorem ipsum
+\subsection*{Data exploration}
 
+The GISTEMP series contains monthly Northern Hemisphere temperature anomalies relative to the 1951-1980 reference period.
+This is important to note because the observations are not raw temperatures, so any seasonal components capture residual month-specific structure in anomalies, not a usual winter-summer temperature cycle.
+
+\begin{figure}[bht]
+\setlength\abovecaptionskip{-10pt}
+\centering
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/fig-raw-series-1}
+\caption{Monthly Northern Hemisphere temperature anomalies (grey) and their 10-year moving average (black).\label{fig:fig-raw-series}}
+\end{figure}
+
+Figure \ref{fig:fig-raw-series} shows a clear long-run increase in temperature anomalies.
+The increase is moderate until the mid-20th century, flattens around 1940-1970, and becomes much steeper from the late 1970s onward.
+The dispersion around the trend appears roughly stable, so an additive decomposition is more natural than a multiplicative one, especially because anomalies can be negative.
+
+The STL decomposition in Figure \ref{fig:fig-stl-decomposition} confirms that the dominant component is the low-frequency trend.
+The time-varying seasonal component is small relative to the trend: its range is only a fraction of the full increase in anomalies.
+The residual component is centered around zero with a constant variance and no noticeable outliers.
+For the modelling below, we remove this small residual seasonal component before fitting HMMs and the univariate RW/LLT DLMs, while also considering a seasonal DLM fitted directly to the raw monthly series.
+
+\begin{figure}[htb]
+\setlength\abovecaptionskip{-10pt}
+\centering
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/fig-stl-decomposition-1}
+\caption{STL decomposition of monthly temperature anomalies.}
+\label{fig:fig-stl-decomposition}
+\end{figure}
+
+\subsection*{Do the data document global warming?}
+
+In both classes of state-space models models, the observed anomaly is interpreted as a noisy signal of an unobserved state process.
+The difference is the nature of that state.
+In a Hidden Markov Model (HMM), the state $S_t$ is discrete.
+In a Dynamic Linear Model (DLM), the latent state is continuous and evolves through Gaussian innovations.
+
+\subsubsection*{Hidden Markov Models}
+
+For the main HMM specification, we use the seasonally adjusted series $Y_t$ and a Gaussian HMM with a state-dependent level:
+\[
+Y_t \mid S_t = j \sim N(\mu_j, \sigma_j^2).
+\]
+For each specification we repeat model fitting several times and retain the converged fit with the largest log-likelihood to account for local likelihood optima.
+For model selection, we use likelihood criteria together with interpretability of the decoded paths.
+
+\begin{figure}[htb]
+\setlength\abovecaptionskip{-10pt}
+\centering
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/hmm-ic-plot-1}
+\caption{Level-HMM fit measures by number of states.}
+\label{fig:hmm-ic-plot}
+\end{figure}
+
+\begin{table}[!h]
+\centering
+\caption{\label{tab:hmm-param-table}\label{tbl:hmm-params}Selected 6-state level HMM parameters.}
+\centering
+\begin{threeparttable}
+\begin{tabular}[t]{rlrrrl}
+\toprule
+State & Interpretation & Mean anomaly & State sd & Occupancy share & Expected duration\\
+\midrule
+1 & very low & -0.446 & 0.187 & 0.183 & 14.0\\
+2 & low & -0.156 & 0.138 & 0.314 & 9.5\\
+3 & middle & 0.139 & 0.150 & 0.263 & 12.8\\
+4 & partly high & 0.448 & 0.110 & 0.057 & 7.7\\
+5 & high & 0.774 & 0.173 & 0.107 & 33.6\\
+6 & very high & 1.289 & 0.252 & 0.076 & \\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\item \textit{Note: }
+\item States reordered by mean anomaly.
+\item State 6 is absorbing; thus, the expected duration is infinite.
+\end{tablenotes}
+\end{threeparttable}
+\end{table}
+
+\begin{figure}[htb]
+\setlength\abovecaptionskip{-10pt}
+\centering
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/hmm-decoded-plot-1}
+\caption{Decoded states from the selected level HMM. Horizontal lines represent estimated state means.}
+\label{fig:hmm-decoded-plot}
+\end{figure}
+
+The level HMM is useful as a discrete summary of the warming path.
+The selected five-state model separates the series into increasingly warm anomaly regimes.
+The choice of five states is mainly interpretive: likelihood-based criteria may favor larger or trend-based models, but the additional flexibility weakens the clean regime interpretation.
+The decoded states in Figure \ref{fig:hmm-decoded-plot} mostly track the long-run increase in anomalies, which is informative but also exposes the limitation of the HMM approach as the later states discretize an increasing trend without additional interpretative value.
+
+We also fitted a linear-trend HMM with emission model
+\[
+Y_t \mid S_t = j \sim N(\alpha_j + \beta_j t, \sigma_j^2).
+\]
+This specification is more flexible because each state has both a level and a slope.
+However, the regimes become harder to interpret: states represent different fitted lines rather than clean regimes, i.e., the states do not represent ``heating'' or ``cooling'' trends as much as categorize observations by which lines they are near to.
+For this reason, the level HMM is the clearer HMM benchmark, while the DLMs below should be more appropriate for a continuously evolving trend.
+
+\subsubsection*{Dynamic Linear Models}
+
+An HMM discretizes a gradual process, while DLMs model the latent temperature level as a continuous Gaussian state.
+We first fit two models to the seasonally adjusted series:
+\[
+Y_t = \mu_t + \epsilon_t, \qquad \epsilon_t \sim N(0, \sigma^2),
+\]
+with either a random-walk state
+\[
+\mu_t = \mu_{t-1} + \eta_t, \qquad \eta_t \sim N(0, \tau^2),
+\]
+or a locally linear trend
+\[
+\mu_t = \mu_{t-1} + \beta_{t-1} + \eta_t, \qquad \eta_t \sim N(0, \tau^2),
+\]
+\[
+\beta_t = \beta_{t-1} + \zeta_t, \qquad \zeta_t \sim N(0, \gamma^2).
+\]
+Finally, we fit a single structured DLM to the raw monthly series, adding a 12-period seasonal DLM:
+\[
+Y_t = \mu_t + s_t + \epsilon_t, \qquad s_t = - \sum_{j=1}^{11} s_{t-j} + \omega_t, \omega_t \sim N(0, \varsigma^2).
+\]
+
+\begin{table}[htbp]
+\centering
+\caption{\label{tab:dlm-param-table}\label{tbl:dlm-params}DLM maximum likelihood estimates and asymptotic standard errors.}
+\centering
+\begin{tabular}[t]{llrr}
+\toprule
+Model & Parameter & Estimate & S.E.\\
+\midrule
+RW & sigma2 & 0.020790 & 0.001122\\
+RW & tau2 & 0.004940 & 0.000691\\
+LLT & sigma2 & 0.020759 & 0.001122\\
+LLT & tau2 & 0.004971 & 0.000696\\
+LLT & gamma2 & 0.000000 & \\
+\addlinespace
+LLT + seasonal & sigma2 & 0.020259 & 0.001058\\
+LLT + seasonal & tau2 & 0.004164 & 0.000580\\
+LLT + seasonal & gamma2 & 0.000000 & \\
+LLT + seasonal & seasonal var & 0.000007 & 0.000002\\
+\bottomrule
+\multicolumn{4}{l}{Note: Variance parameters are on the original scale; blank S.E.}\\
+\multicolumn{4}{l}{entries are omitted for parameters estimated at the}\\
+\multicolumn{4}{l}{numerical lower bound.}\\
+\end{tabular}
+\end{table}
+
+\begin{table}[!h]
+\centering
+\caption{\label{tab:dlm-fit-table}\label{tbl:dlm-fit}DLM fit summary.}
+\centering
+\fontsize{8}{10}\selectfont
+\begin{tabular}[t]{lrrr}
+\toprule
+Model & Log-likelihood & AIC & BIC\\
+\midrule
+RW & 2084.60 & -4165.21 & -4154.27\\
+LLT & 2070.34 & -4134.68 & -4118.28\\
+LLT + seasonal & 1939.46 & -3870.92 & -3849.05\\
+\bottomrule
+\multicolumn{4}{l}{\textsuperscript{a} RW and LLT are fit on the seasonally adjusted series}\\
+\multicolumn{4}{l}{and thus are comparable; the LLT plus seasonal is}\\
+\multicolumn{4}{l}{fitted to the raw monthly series, so it's likelihood}\\
+\multicolumn{4}{l}{is not comparable.}\\
+\end{tabular}
+\end{table}
+
+\begin{figure}[htb]
+\setlength\abovecaptionskip{-10pt}
+\centering
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/dlm-smoothing-plots-1}
+\caption{Smoothed latent temperature level with 95\% pointwise intervals.}
+\label{fig:dlm-smoothing-plots}
+\end{figure}
+
+The DLMs directly estimate the latent warming trend.
+Figure \ref{fig:dlm-smoothing-plots} shows that all three specifications recover the same qualitative pattern: a relatively flat mid-century period followed by a sustained recent increase.
+On the seasonally adjusted series, Table \ref{tbl:dlm-fit} favors the RW model over the LLT by likelihood, AIC and BIC; the LLT slope innovation variance is estimated at the lower bound, so the additional stochastic slope-state flexibility is not supported by the data.
+The LLT plus seasonal model remains useful as a full-series specification because the trend and seasonal states are estimated jointly from the raw observations, rather than treating STL components as separately observed time series.
+The robust conclusion is sustained recent warming, not a precisely identified stochastic acceleration process.
+
+\begin{table}[!h]
+\centering
+\caption{\label{tab:forecast-tables}\label{tbl:forecast-sa}One-step-ahead forecast diagnostics on the final 20 years.}
+\centering
+\begin{tabular}[t]{lrrrrr}
+\toprule
+Model & RMSE & MAE & ACF(1) & ACF(2) & Approx. 95\% coverage\\
+\midrule
+RW & 0.186 & 0.144 & 0.262 & 0.071 & 0.942\\
+LLT & 0.185 & 0.144 & 0.261 & 0.070 & 0.942\\
+LLT + seasonal & 0.172 & 0.132 & 0.234 & 0.052 & 0.958\\
+\bottomrule
+\multicolumn{6}{l}{\textsuperscript{a} Seasonal adjustment for RW and LTT is estimated from the training sample}\\
+\multicolumn{6}{l}{only.}\\
+\end{tabular}
+\end{table}
+
+\begin{figure}[htb]
+\setlength\abovecaptionskip{-10pt}
+\centering
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/forecast-diagnostic-plot-1}
+\caption{Forecast-error diagnostics for the LLT plus seasonal DLM: standardized one-step-ahead errors on the final 20 years.}
+\label{fig:forecast-diagnostic-plot}
+\end{figure}
+
+The forecast diagnostics are deliberately light: their role is to check whether the fitted state-space models leave obvious structure in one-step-ahead errors.
+The RW/LLT comparison is made on a seasonally adjusted series constructed without using the test period; the structured DLM is checked directly on the raw series.
+Figure \ref{fig:forecast-diagnostic-plot} suggests acceptable marginal calibration, but the positive lag-1 autocorrelation shows that some short-run dependence remains.
+This does not affect the long-run warming conclusion, but it means the model is not a complete description of monthly short-run dynamics.
+
+\subsubsection*{Conclusion}
+
+The GISTEMP data document global warming in the sense relevant for this project: the latent long-run anomaly trend is increasing, and the increase is especially visible in the recent part of the sample.
+The HMM analysis gives a useful discrete summary of the data path, but the decoded states mostly track the upward trend and their regime interpretation is partly artificial.
+The DLM analysis is more directly suited to the research question because it estimates a continuous latent temperature level, while the near-zero slope innovation variance warns against overclaiming a separately identified stochastic acceleration process.
+The seasonal effects are small relative to the trend, so the modelling implication is clear: the central feature of the data is not seasonality, but a persistent low-frequency increase in temperature anomalies, with a markedly steeper recent trend.
 
 \pagebreak
 \section{GHCN}
-In the second part of the report, we turn to temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures and Dynamic Linear Models (DLMs). The question of importance is to what extent spatial correlation is informative for weather prediction.
+In the second part of the report, we turn to temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures and Dynamic Linear Models (DLMs).
+The question of importance is to what extent spatial correlation is informative for weather prediction.
 
 \subsection*{Data}
 
@@ -105,7 +322,8 @@ W = \operatorname{diag}(\sigma^2_{w,1},\sigma^2_{w,2},\sigma^2_{w,3}).
 
 \subsubsection*{2: Random walk with unrestricted error covariance (Full W)}
 
-This model allows the latent temperature levels of different stations to move together, but the dependence is estimated freely. The state innovation covariance matrix is unrestricted positive definite:
+This model allows the latent temperature levels of different stations to move together, but the dependence is estimated freely.
+The state innovation covariance matrix is unrestricted positive definite:
 \[
 W =
 \begin{pmatrix}
@@ -117,7 +335,8 @@ W =
 
 \subsubsection*{3: Spatial random walk with distance-based covariance (Distance)}
 
-This model imposes the assumption that nearby stations should have more strongly correlated latent temperature innovations than distant stations. The state innovation covariance matrix is spatially structured:
+This model imposes the assumption that nearby stations should have more strongly correlated latent temperature innovations than distant stations.
+The state innovation covariance matrix is spatially structured:
 \[
 W_{jk}
 =
@@ -145,7 +364,8 @@ W
 
 \subsubsection*{4: Spatial random walk with seasonal component (Seasonal distance)}
 
-For the seasonal model, the original non-seasonally-adjusted maximum temperatures are used. Define the state vector as
+For the seasonal model, the original non-seasonally-adjusted maximum temperatures are used.
+Define the state vector as
 \[
 \theta_t =
 \begin{pmatrix}

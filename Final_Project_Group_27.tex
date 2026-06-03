@@ -23,8 +23,8 @@
 \author{%
 Group 27\\[0.5em]
 \begin{tabular}{c}
-Emanuele Artoni, Anna-Bella Dreyfus \\
-Arturs Janis Nikitins, Madelief van Weerdenburg
+Arturs Janis Nikitins, Emanuele Artoni,\\
+Anna-Bella Dreyfus, Madelief van Weerdenburg
 \end{tabular}
 }
 \date{\today}
@@ -68,7 +68,7 @@ For the modelling below, we remove this small residual seasonal component before
 
 \subsection*{Do the data document global warming?}
 
-In both classes of state-space models models, the observed anomaly is interpreted as a noisy signal of an unobserved state process.
+In both classes of state-space models, the observed anomaly is interpreted as a noisy signal of an unobserved state process.
 The difference is the nature of that state.
 In a Hidden Markov Model (HMM), the state $S_t$ is discrete.
 In a Dynamic Linear Model (DLM), the latent state is continuous and evolves through Gaussian innovations.
@@ -123,9 +123,9 @@ State & Interpretation & Mean anomaly & State sd & Occupancy share & Expected du
 \label{fig:hmm-decoded-plot}
 \end{figure}
 
-The level HMM is useful as a discrete summary of the warming path.
-The selected five-state model separates the series into increasingly warm anomaly regimes.
-The choice of five states is mainly interpretive: likelihood-based criteria may favor larger or trend-based models, but the additional flexibility weakens the clean regime interpretation.
+The level HMM is useful as a discrete summary of the warming path as the selected six-state model separates the series into increasingly warm anomaly regimes.
+The choice of six states is based on the BIC criterion and interpretability.
+Likelihood and AIC-based selection may favor larger or trend-based models, but the additional flexibility weakens a clean regime interpretation.
 The decoded states in Figure \ref{fig:hmm-decoded-plot} mostly track the long-run increase in anomalies, which is informative but also exposes the limitation of the HMM approach as the later states discretize an increasing trend without additional interpretative value.
 
 We also fitted a linear-trend HMM with emission model
@@ -156,7 +156,7 @@ or a locally linear trend
 \]
 Finally, we fit a single structured DLM to the raw monthly series, adding a 12-period seasonal DLM:
 \[
-Y_t = \mu_t + s_t + \epsilon_t, \qquad s_t = - \sum_{j=1}^{11} s_{t-j} + \omega_t, \omega_t \sim N(0, \varsigma^2).
+Y_t = \mu_t + s_t + \epsilon_t, \qquad s_t = - \sum_{j=1}^{11} s_{t-j} + \omega_t, \qquad \omega_t \sim N(0, \sigma_s^2).
 \]
 
 \begin{table}[htb]
@@ -174,7 +174,7 @@ LLT + seasonal & 1911.1 & -3814.3 & -3792.4\\
 \end{tabular}
 \begin{tablenotes}
 \item \textit{Note: }
-\item LLT plus seasonal is fitted to the raw monthly series; it's likelihood is not directly comparable.
+\item LLT plus seasonal is fitted to the raw monthly series; its likelihood is not directly comparable.
 \end{tablenotes}
 \end{threeparttable}
 \end{minipage}
@@ -220,14 +220,13 @@ On the seasonally adjusted series, Table \ref{tbl:dlm-fit} favors the RW model o
 As Table \ref{tbl:dlm-params} shows, the LLT slope innovation variance is estimated at the lower bound, so the additional stochastic slope-state flexibility is not supported by the data.
 Figure \ref{fig:dlm-smoothing-plots} shows that all three specifications recover the same qualitative pattern: a relatively flat mid-century period followed by a sustained recent increase.
 The LLT plus seasonal model remains useful as a full-series specification because the trend and seasonal states are estimated jointly from the raw observations, rather than treating STL components as separately observed time series.
-The conclusion is that of a sustained recent warming, the DLMs directly estimate a latent warming trend.
+The DLMs directly estimate a latent warming trend, supporting the conclusion of sustained recent warming.
 
 To check whether the fitted DLMs leave obvious structure in one-step-ahead errors, we check some light forecast diagnostics.
 The RW/LLT comparison is made on a seasonally adjusted series constructed without using the test period of the last 20 years; the structured DLM is checked directly on the raw series.
-Table \ref{tbl:forecast-sa} shows that, within the evaluation period, the model one-step-ahead forecasts systematically undershoot temperature dynamics.
-This is could have arisen due to the deterministic trend component being incapable of adjusting to accelerating warming.
-In terms of general forecasting performance, LTT + seasonal marginally outperforms both deseasonalized models in terms of RMSFE and MAE, potentially leveraging an improved seasonal fit over STL decomposition.
-On residual quality for LTT + season, Figure \ref{fig:forecast-diagnostic-plot} suggests acceptable marginal calibration, but the positive lag-1 autocorrelation shows that some short-run dependence remains.
+Table \ref{tbl:forecast-sa} shows that, within the evaluation period, the model one-step-ahead forecasts are on average in line with actual temperature dynamics.
+In terms of forecasting performance, LLT + seasonal marginally outperforms both deseasonalized models in terms of RMSFE and MAE, potentially leveraging an improved seasonal fit over STL decomposition.
+On residual quality for LLT + season, Figure \ref{fig:forecast-diagnostic-plot} suggests acceptable marginal calibration, but the positive lag-1 autocorrelation shows that some short-run dependence remains.
 This does not affect the long-run warming conclusion, but it means the model is not a complete description of monthly short-run dynamics.
 
 
@@ -237,16 +236,16 @@ This does not affect the long-run warming conclusion, but it means the model is 
 \begin{threeparttable}
 \begin{tabular}[t]{lrrrrr}
 \toprule
-Model & Mean & RMFSE & MAE & ACF(1) & ACF(2)\\
+Model & Mean & RMSFE & MAE & ACF(1) & ACF(2)\\
 \midrule
-RW & 0.034 & 0.186 & 0.144 & 0.262 & 0.071\\
-LLT & 0.034 & 0.185 & 0.144 & 0.261 & 0.070\\
-LLT + seasonal & 0.031 & 0.175 & 0.135 & 0.246 & 0.051\\
+RW & 0.006 & 0.186 & 0.144 & 0.262 & 0.071\\
+LLT & 0.004 & 0.185 & 0.144 & 0.261 & 0.070\\
+LLT + seasonal & 0.004 & 0.175 & 0.135 & 0.246 & 0.051\\
 \bottomrule
 \end{tabular}
 \begin{tablenotes}
 \item \textit{Note: }
-\item Seasonal adjustment for RW and LTT is estimated from the training sample only.
+\item Seasonal adjustment for RW and LLT is estimated from the training sample only.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}
@@ -291,10 +290,10 @@ The seasonal effects and deseasonalized series are shown in Figure~\ref{fig:data
 As expected, summer months display higher average maximum temperatures than winter months.
 Paso Robles and Baker City exhibit greater seasonal variability (maximum temperatures are up to \SI{10}{}--\SI{15}{\celsius} lower in winter days and \SI{10}{}--\SI{15}{\celsius} higher in summer days than on average), while maximum temperatures in San Francisco vary only by \SI{5}{\celsius} from the average.
 After deseasonalization, Paso Robles has the warmest weather -- maximum temperatures vary between \SI{10}{} and \SI{40}{\celsius} with an average of around \SI{25}{\celsius}.
-San Francisco has an average maximum daily temperature of \SI{18}{\celsius}; most days have a maximum temperatures between \SI{10}{} and \SI{20}{\celsius} degrees, with a fatter tail surpassing \SI{30}{\celsius}.
+San Francisco has an average maximum daily temperature of \SI{18}{\celsius}; most days have maximum temperatures between \SI{10}{} and \SI{20}{\celsius}, with a fatter tail surpassing \SI{30}{\celsius}.
 Baker City has the coldest but most varied weather: average maximum daily temperatures are \SI{15}{\celsius}, ranging from freezing temperatures to approaching \SI{30}{\celsius}.
 
-Overall, the deseasonalized temperatures do not display any strong trends; thus, random-walk plus noise models could be considered suitable for modelling this data.
+Overall, the deseasonalized temperatures do not display any strong trends; thus, given that the goal is short-horizon preidction, random-walk plus noise models could be considered suitable for modelling this data.
 
 \begin{figure}[htbp]
 \centering
@@ -439,7 +438,7 @@ In the Full W model, the strongest latent dependence is between Paso Robles and 
 This is consistent with the geography of the selected stations.
 The distance model imposes a more parsimonious spatial structure with an estimated half-correlation distance of about \SI{395}{km}, implying that latent level shocks remain strongly correlated for nearby stations but decay with distance.
 The seasonal distance model estimates the seasonal innovation variance at effectively zero, giving a similar fit to the distance model based on deseasonalized data.
-Therefore, in this application, explicit stochastic seasonality adds little to a fixed annual harmonic.
+Therefore, in this simple application, explicit stochastic seasonality adds little to a fixed annual harmonic.
 
 Some variance estimates are on or close to the boundary of the parameter space, most notably the Paso Robles observation variance in the Independent model and the seasonal innovation variance in the Seasonal distance model.
 These estimates should therefore be interpreted as approximately zero.

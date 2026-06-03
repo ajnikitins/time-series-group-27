@@ -159,7 +159,7 @@ plot_seas <- data_seasonality %>%
 plot_ts_deseas <- data_main_des_raw %>%
   mutate(TMAX_des_rolling = zoo::rollmean(TMAX_des, k = 365, fill = NA), .by = station) %>%
   ggplot(aes(x = date, y = TMAX_des)) +
-  geom_point(alpha = 0.2, shape = ".") +
+  geom_point(alpha = 0.1, shape = ".") +
   geom_line(aes(y = TMAX_des_rolling), color = "red") +
   facet_wrap(~ station, ncol = 1, scales = "free_y") +
   labs(x = NULL, y = "Deseasonalized maximum temperatures (ºC)")

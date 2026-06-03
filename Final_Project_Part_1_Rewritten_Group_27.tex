@@ -185,7 +185,7 @@ Specification & States & Log-likelihood & AIC & BIC & Decoded switches\\
 Level HMM, selected & 6 & 408.2 & -722.4 & -465.4 & 97\\
 Level HMM, min BIC & 6 & 408.2 & -722.4 & -465.4 & 97\\
 Trend HMM, min BIC & 5 & 505.2 & -932.4 & -719.1 & 133\\
-LTR trend HMM, min BIC & 4 & 239.2 & -424.4 & -276.7 & 3\\
+LTR trend HMM, min BIC & 3 & 191.2 & -364.4 & -315.2 & 2\\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -206,7 +206,7 @@ LLT + seasonal & 1911.1 & -3814.3 & -3792.4\\
 \end{tabular}
 \begin{tablenotes}
 \item \textit{Note: } 
-\item LLT plus seasonal is fitted to the raw monthly series; it's likelihood is not directly comparable.
+\item LLT plus seasonal is fitted to the raw monthly series; its likelihood is not directly comparable.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}
@@ -257,17 +257,16 @@ LLT + seasonal & seasonal var & 0.0001 & 0.0000\\
 \begin{threeparttable}
 \begin{tabular}[t]{lrrrrr}
 \toprule
-Model & Mean & RMFSE & MAE & ACF(1) & ACF(2)\\
+Model & Mean & RMSFE & MAE & ACF(1) & ACF(2)\\
 \midrule
-RW & 0.034 & 0.186 & 0.144 & 0.262 & 0.071\\
-LLT & 0.034 & 0.185 & 0.144 & 0.261 & 0.070\\
-LLT + seasonal & 0.031 & 0.175 & 0.135 & 0.246 & 0.051\\
+RW & 0.006 & 0.186 & 0.144 & 0.262 & 0.071\\
+LLT & 0.004 & 0.185 & 0.144 & 0.261 & 0.070\\
+LLT + seasonal & 0.004 & 0.175 & 0.135 & 0.246 & 0.051\\
 \bottomrule
 \end{tabular}
 \begin{tablenotes}
 \item \textit{Note: } 
-\item Seasonal adjustment for RW and LTT is estimated from the training sample only.
-\item[1] Mean level is: 0.113829908675799
+\item Seasonal adjustment for RW and LLT is estimated from the training sample only.
 \end{tablenotes}
 \end{threeparttable}
 \end{table}

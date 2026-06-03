@@ -110,12 +110,11 @@ decomp_df %>%
 ```
 
 ```{r hmm-helpers}
-fit_hmm_once <- function(data, k, type = c("level", "trend", "rate"), ltr = FALSE) {
+fit_hmm_once <- function(data, k, type = c("level", "trend"), ltr = FALSE) {
   form <- switch(
     type,
     "trend" = y ~ t_decade,
     "level" = y ~ 1,
-    "rate" = dy ~ 1,
     "ltr" = y ~ t_decade
   )
 
@@ -150,10 +149,10 @@ fit_hmm_once <- function(data, k, type = c("level", "trend", "rate"), ltr = FALS
     # Fix forbidden transitions to zero
     fixed[trans_idx[!allowed]] <- TRUE
 
-    # Fix final row: state 3 is absorbing
+    # Fix final row: state k is absorbing
     fixed[trans_idx[row_id == k]] <- TRUE
 
-    capture.output(fit_obj <- fit(mod, verbose = FALSE))
+    capture.output(fit_obj <- fit(mod, fixed = fixed, verbose = FALSE))
   } else {
     mod <- depmix(form, data = data, nstates = k)
     capture.output(fit_obj <- fit(mod, verbose = FALSE))
@@ -162,7 +161,7 @@ fit_hmm_once <- function(data, k, type = c("level", "trend", "rate"), ltr = FALS
   fit_obj
 }
 
-fit_hmm_repeated <- function(data, k, type = c("level", "trend", "rate"), ltr = FALSE, n_runs = 25) {
+fit_hmm_repeated <- function(data, k, type = c("level", "trend"), ltr = FALSE, n_runs = 25) {
   fits <- lapply(seq_len(n_runs), function(run_id) {
     fit_obj <- fit_hmm_once(data, k, type = type, ltr = ltr)
     if (is.null(fit_obj)) return(NULL)
@@ -197,7 +196,7 @@ fit_hmm_repeated <- function(data, k, type = c("level", "trend", "rate"), ltr = 
   )
 }
 
-fit_hmm_grid <- function(data, states = 2:8, type = c("level", "trend", "rate"), ltr = FALSE, n_runs = 25) {
+fit_hmm_grid <- function(data, states = 2:8, type = c("level", "trend"), ltr = FALSE, n_runs = 25) {
   out <- lapply(states, function(k) {
     fit_hmm_repeated(data, k, type = type, ltr = ltr, n_runs = n_runs)
   })
@@ -238,18 +237,18 @@ extract_trend_params <- function(fit_obj, data) {
 }
 
 extract_params <- \(fit_obj, type, data) {
-  if (type %in% c("level", "rate")) {
+  if (type %in% c("level")) {
     extract_level_params(fit_obj)
   } else {
     extract_trend_params(fit_obj, data)
   }
 }
 
-get_decoded <- function(fit_obj, data, type = c("level", "trend", "rate")) {
+get_decoded <- function(fit_obj, data, type = c("level", "trend")) {
   k <- fit_obj@nstates
   decoded <- posterior(fit_obj, type = "viterbi")
 
-  if (type %in% c("level", "rate")) {
+  if (type %in% c("level")) {
     params <- extract_level_params(fit_obj)
     ord <- params$original_state
   } else if (type %in% c("trend")) {
@@ -270,7 +269,7 @@ get_decoded <- function(fit_obj, data, type = c("level", "trend", "rate")) {
   )
 }
 
-count_switches <- function(fit_obj, data, type = c("level", "trend", "rate")) {
+count_switches <- function(fit_obj, data, type = c("level", "trend")) {
   d <- get_decoded(fit_obj, data, type = type)$state
   sum(diff(d) != 0)
 }
@@ -416,7 +415,7 @@ ggplot(selected_decoded, aes(x = time, y = y)) +
   guides(colour = guide_legend(nrow = 1))
 ```
 
-```{r hmm-decoded-plot-tot, fig.width=8, fig.height=12, fig.cap="Decoded states from the selected level HMM. Horizontal lines represent estimated state means."}
+```{r hmm-decoded-plot-tot, fig.width=8, fig.height=12, fig.cap="Decoded states from the all considered HMMs. Horizontal lines represent estimated state means."}
 model_decoded %>%
   ggplot(aes(x = time, y = y)) +
   geom_line(alpha = 0.25) +
@@ -626,7 +625,7 @@ knitr::kable(
   digits = 1,
   escape = FALSE
 ) %>%
-  footnote(general = c("LLT plus seasonal is fitted to the raw monthly series; it's likelihood is not directly comparable."), threeparttable = TRUE)
+  footnote(general = c("LLT plus seasonal is fitted to the raw monthly series; its likelihood is not directly comparable."), threeparttable = TRUE)
 ```
 
 ```{r dlm-param-table}
@@ -702,8 +701,8 @@ forecast_eval <- function(y, build_model, start_list, model_name, years_test = 2
   list(
     table = tibble(
       Model = model_name,
-      Mean = mean(err^2, na.rm = TRUE),
-      RMFSE = sqrt(mean(err^2, na.rm = TRUE)),
+      Mean = mean(err, na.rm = TRUE),
+      RMSFE = sqrt(mean(err^2, na.rm = TRUE)),
       MAE = mean(abs(err), na.rm = TRUE),
       `ACF(1)` = acf_vals[2],
       `ACF(2)` = acf_vals[3]
@@ -753,7 +752,7 @@ knitr::kable(
   digits = 3,
   escape = FALSE
 ) %>%
-  footnote(general = "Seasonal adjustment for RW and LTT is estimated from the training sample only.", paste0("Mean level is: ", mean(y_raw)), threeparttable = TRUE)
+  footnote(general = "Seasonal adjustment for RW and LLT is estimated from the training sample only.", threeparttable = TRUE)
 ```
 
 ```{r forecast-diagnostic-plot, fig.width=7, fig.height=3.2, fig.cap="Forecast-error diagnostics for the LLT plus seasonal DLM: standardized one-step-ahead errors on the final 20 years."}

@@ -17,6 +17,7 @@
 \usepackage{booktabs}
 \usepackage{makecell}
 \usepackage{threeparttable}
+\usepackage{subcaption}
 
 \title{Final project for Time Series Analysis (20236)}
 \author{%
@@ -31,8 +32,9 @@ Arturs Janis Nikitins, Madelief van Weerdenburg
 \begin{document}
 \maketitle
 % \pagebreak
-\textbf{Scientific question.} We ask whether monthly Northern Hemisphere GISTEMP anomalies document global warming, and compare a discrete-regime HMM summary with continuous latent-trend DLMs.
-
+\textbf{Scientific question.} In the first part of the report, we ask whether monthly Northern Hemisphere GISTEMP anomalies document global warming, and compare a discrete-regime HMM summary with continuous latent-trend DLMs.
+In the second part, we turn to DLM-based temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures.
+The question of importance is to what extent spatial correlation is informative for weather prediction.
 \section{GISTEMP}
 
 \subsection*{Data exploration}
@@ -41,7 +43,7 @@ The GISTEMP series contains monthly Northern Hemisphere temperature anomalies re
 This is important to note because the observations are not raw temperatures, so any seasonal components capture residual month-specific structure in anomalies, not a usual winter-summer temperature cycle.
 
 \begin{figure}[bht]
-\setlength\abovecaptionskip{-10pt}
+\setlength\abovecaptionskip{0pt}
 \centering
 \includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/fig-raw-series-1}
 \caption{Monthly Northern Hemisphere temperature anomalies (grey) and their 10-year moving average (black).\label{fig:fig-raw-series}}
@@ -56,8 +58,8 @@ The time-varying seasonal component is small relative to the trend: its range is
 The residual component is centered around zero with a constant variance and no noticeable outliers.
 For the modelling below, we remove this small residual seasonal component before fitting HMMs and the univariate RW/LLT DLMs, while also considering a seasonal DLM fitted directly to the raw monthly series.
 
-\begin{figure}[htb]
-\setlength\abovecaptionskip{-10pt}
+\begin{figure}[thb]
+\setlength\abovecaptionskip{0pt}
 \centering
 \includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/fig-stl-decomposition-1}
 \caption{STL decomposition of monthly temperature anomalies.}
@@ -80,15 +82,15 @@ Y_t \mid S_t = j \sim N(\mu_j, \sigma_j^2).
 For each specification we repeat model fitting several times and retain the converged fit with the largest log-likelihood to account for local likelihood optima.
 For model selection, we use likelihood criteria together with interpretability of the decoded paths.
 
-\begin{figure}[htb]
-\setlength\abovecaptionskip{-10pt}
+\begin{figure}[bht]
+\setlength\abovecaptionskip{0pt}
 \centering
 \includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/hmm-ic-plot-1}
 \caption{Level-HMM fit measures by number of states.}
 \label{fig:hmm-ic-plot}
 \end{figure}
 
-\begin{table}[!h]
+\begin{table}[htb]
 \centering
 \caption{\label{tab:hmm-param-table}\label{tbl:hmm-params}Selected 6-state level HMM parameters.}
 \centering
@@ -114,7 +116,7 @@ State & Interpretation & Mean anomaly & State sd & Occupancy share & Expected du
 \end{table}
 
 \begin{figure}[htb]
-\setlength\abovecaptionskip{-10pt}
+\setlength\abovecaptionskip{0pt}
 \centering
 \includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/hmm-decoded-plot-1}
 \caption{Decoded states from the selected level HMM. Horizontal lines represent estimated state means.}
@@ -157,106 +159,116 @@ Finally, we fit a single structured DLM to the raw monthly series, adding a 12-p
 Y_t = \mu_t + s_t + \epsilon_t, \qquad s_t = - \sum_{j=1}^{11} s_{t-j} + \omega_t, \omega_t \sim N(0, \varsigma^2).
 \]
 
-\begin{table}[htbp]
-\centering
-\caption{\label{tab:dlm-param-table}\label{tbl:dlm-params}DLM maximum likelihood estimates and asymptotic standard errors.}
-\centering
-\begin{tabular}[t]{llrr}
-\toprule
-Model & Parameter & Estimate & S.E.\\
-\midrule
-RW & sigma2 & 0.020790 & 0.001122\\
-RW & tau2 & 0.004940 & 0.000691\\
-LLT & sigma2 & 0.020759 & 0.001122\\
-LLT & tau2 & 0.004971 & 0.000696\\
-LLT & gamma2 & 0.000000 & \\
-\addlinespace
-LLT + seasonal & sigma2 & 0.020259 & 0.001058\\
-LLT + seasonal & tau2 & 0.004164 & 0.000580\\
-LLT + seasonal & gamma2 & 0.000000 & \\
-LLT + seasonal & seasonal var & 0.000007 & 0.000002\\
-\bottomrule
-\multicolumn{4}{l}{Note: Variance parameters are on the original scale; blank S.E.}\\
-\multicolumn{4}{l}{entries are omitted for parameters estimated at the}\\
-\multicolumn{4}{l}{numerical lower bound.}\\
-\end{tabular}
-\end{table}
-
-\begin{table}[!h]
-\centering
+\begin{table}[htb]
+\begin{minipage}[t]{0.47\textwidth}
 \caption{\label{tab:dlm-fit-table}\label{tbl:dlm-fit}DLM fit summary.}
-\centering
-\fontsize{8}{10}\selectfont
+\begin{threeparttable}
 \begin{tabular}[t]{lrrr}
 \toprule
 Model & Log-likelihood & AIC & BIC\\
 \midrule
-RW & 2084.60 & -4165.21 & -4154.27\\
-LLT & 2070.34 & -4134.68 & -4118.28\\
-LLT + seasonal & 1939.46 & -3870.92 & -3849.05\\
+RW & 2084.6 & -4165.2 & -4154.3\\
+LLT & 2070.3 & -4134.7 & -4118.3\\
+LLT + seasonal & 1911.1 & -3814.3 & -3792.4\\
 \bottomrule
-\multicolumn{4}{l}{\textsuperscript{a} RW and LLT are fit on the seasonally adjusted series}\\
-\multicolumn{4}{l}{and thus are comparable; the LLT plus seasonal is}\\
-\multicolumn{4}{l}{fitted to the raw monthly series, so it's likelihood}\\
-\multicolumn{4}{l}{is not comparable.}\\
 \end{tabular}
+\begin{tablenotes}
+\item \textit{Note: }
+\item LLT plus seasonal is fitted to the raw monthly series; it's likelihood is not directly comparable.
+\end{tablenotes}
+\end{threeparttable}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.47\textwidth}
+\caption{\label{tab:dlm-param-table}\label{tbl:dlm-params}DLM maximum likelihood estimates.}
+\begin{threeparttable}
+\begin{tabular}[t]{llrr}
+\toprule
+Model & Parameter & Estimate & S.E.\\
+\midrule
+RW & sigma2 & 0.0208 & 0.0011\\
+RW & tau2 & 0.0049 & 0.0007\\
+\addlinespace
+LLT & sigma2 & 0.0208 & 0.0011\\
+LLT & tau2 & 0.0050 & 0.0007\\
+LLT & gamma2 & 0.0000 & \\
+\addlinespace
+LLT + seasonal & sigma2 & 0.0199 & 0.0011\\
+LLT + seasonal & tau2 & 0.0048 & 0.0007\\
+LLT + seasonal & gamma2 & 0.0000 & \\
+LLT + seasonal & seasonal var & 0.0001 & 0.0000\\
+\bottomrule
+\end{tabular}
+\begin{tablenotes}
+\item \textit{Note: }
+\item Variance parameters are on the original scale.
+\item S.E. entries are omitted for near-zero parameters.
+\end{tablenotes}
+\end{threeparttable}
+\end{minipage}
 \end{table}
 
-\begin{figure}[htb]
-\setlength\abovecaptionskip{-10pt}
+\begin{figure}[h]
+\setlength\abovecaptionskip{0pt}
 \centering
 \includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/dlm-smoothing-plots-1}
 \caption{Smoothed latent temperature level with 95\% pointwise intervals.}
 \label{fig:dlm-smoothing-plots}
 \end{figure}
 
-The DLMs directly estimate the latent warming trend.
+On the seasonally adjusted series, Table \ref{tbl:dlm-fit} favors the RW model over the LLT by likelihood, AIC and BIC.
+As Table \ref{tbl:dlm-params} shows, the LLT slope innovation variance is estimated at the lower bound, so the additional stochastic slope-state flexibility is not supported by the data.
 Figure \ref{fig:dlm-smoothing-plots} shows that all three specifications recover the same qualitative pattern: a relatively flat mid-century period followed by a sustained recent increase.
-On the seasonally adjusted series, Table \ref{tbl:dlm-fit} favors the RW model over the LLT by likelihood, AIC and BIC; the LLT slope innovation variance is estimated at the lower bound, so the additional stochastic slope-state flexibility is not supported by the data.
 The LLT plus seasonal model remains useful as a full-series specification because the trend and seasonal states are estimated jointly from the raw observations, rather than treating STL components as separately observed time series.
-The robust conclusion is sustained recent warming, not a precisely identified stochastic acceleration process.
+The conclusion is that of a sustained recent warming, the DLMs directly estimate a latent warming trend.
 
-\begin{table}[!h]
-\centering
+To check whether the fitted DLMs leave obvious structure in one-step-ahead errors, we check some light forecast diagnostics.
+The RW/LLT comparison is made on a seasonally adjusted series constructed without using the test period of the last 20 years; the structured DLM is checked directly on the raw series.
+Table \ref{tbl:forecast-sa} shows that, within the evaluation period, the model one-step-ahead forecasts systematically undershoot temperature dynamics.
+This is could have arisen due to the deterministic trend component being incapable of adjusting to accelerating warming.
+In terms of general forecasting performance, LTT + seasonal marginally outperforms both deseasonalized models in terms of RMSFE and MAE, potentially leveraging an improved seasonal fit over STL decomposition.
+On residual quality for LTT + season, Figure \ref{fig:forecast-diagnostic-plot} suggests acceptable marginal calibration, but the positive lag-1 autocorrelation shows that some short-run dependence remains.
+This does not affect the long-run warming conclusion, but it means the model is not a complete description of monthly short-run dynamics.
+
+
+\begin{table}[bht]
 \caption{\label{tab:forecast-tables}\label{tbl:forecast-sa}One-step-ahead forecast diagnostics on the final 20 years.}
 \centering
+\begin{threeparttable}
 \begin{tabular}[t]{lrrrrr}
 \toprule
-Model & RMSE & MAE & ACF(1) & ACF(2) & Approx. 95\% coverage\\
+Model & Mean & RMFSE & MAE & ACF(1) & ACF(2)\\
 \midrule
-RW & 0.186 & 0.144 & 0.262 & 0.071 & 0.942\\
-LLT & 0.185 & 0.144 & 0.261 & 0.070 & 0.942\\
-LLT + seasonal & 0.172 & 0.132 & 0.234 & 0.052 & 0.958\\
+RW & 0.034 & 0.186 & 0.144 & 0.262 & 0.071\\
+LLT & 0.034 & 0.185 & 0.144 & 0.261 & 0.070\\
+LLT + seasonal & 0.031 & 0.175 & 0.135 & 0.246 & 0.051\\
 \bottomrule
-\multicolumn{6}{l}{\textsuperscript{a} Seasonal adjustment for RW and LTT is estimated from the training sample}\\
-\multicolumn{6}{l}{only.}\\
 \end{tabular}
+\begin{tablenotes}
+\item \textit{Note: }
+\item Seasonal adjustment for RW and LTT is estimated from the training sample only.
+\end{tablenotes}
+\end{threeparttable}
 \end{table}
 
-\begin{figure}[htb]
-\setlength\abovecaptionskip{-10pt}
+\begin{figure}[bht]
+\setlength\abovecaptionskip{0pt}
 \centering
 \includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/forecast-diagnostic-plot-1}
 \caption{Forecast-error diagnostics for the LLT plus seasonal DLM: standardized one-step-ahead errors on the final 20 years.}
 \label{fig:forecast-diagnostic-plot}
 \end{figure}
 
-The forecast diagnostics are deliberately light: their role is to check whether the fitted state-space models leave obvious structure in one-step-ahead errors.
-The RW/LLT comparison is made on a seasonally adjusted series constructed without using the test period; the structured DLM is checked directly on the raw series.
-Figure \ref{fig:forecast-diagnostic-plot} suggests acceptable marginal calibration, but the positive lag-1 autocorrelation shows that some short-run dependence remains.
-This does not affect the long-run warming conclusion, but it means the model is not a complete description of monthly short-run dynamics.
-
 \subsubsection*{Conclusion}
 
-The GISTEMP data document global warming in the sense relevant for this project: the latent long-run anomaly trend is increasing, and the increase is especially visible in the recent part of the sample.
+The GISTEMP data document global warming in the relevant sense: the latent long-run anomaly trend is increasing, and the increase is especially visible in the recent part of the sample.
 The HMM analysis gives a useful discrete summary of the data path, but the decoded states mostly track the upward trend and their regime interpretation is partly artificial.
 The DLM analysis is more directly suited to the research question because it estimates a continuous latent temperature level, while the near-zero slope innovation variance warns against overclaiming a separately identified stochastic acceleration process.
-The seasonal effects are small relative to the trend, so the modelling implication is clear: the central feature of the data is not seasonality, but a persistent low-frequency increase in temperature anomalies, with a markedly steeper recent trend.
+Any seasonal effects are small relative to the trend, so the modelling implication is that of a persistent low-frequency increase in temperature anomalies, with a markedly steeper recent trend.
 
+\clearpage
 \pagebreak
 \section{GHCN}
-In the second part of the report, we turn to temperature prediction using Global Historical Climatology Network (GHCN) data on weather-station-recorded maximum daily temperatures and Dynamic Linear Models (DLMs).
-The question of importance is to what extent spatial correlation is informative for weather prediction.
 
 \subsection*{Data}
 
@@ -286,7 +298,7 @@ Overall, the deseasonalized temperatures do not display any strong trends; thus,
 
 \begin{figure}[htbp]
 \centering
-\setlength\abovecaptionskip{-10pt}
+\setlength\abovecaptionskip{0pt}
 \includegraphics[width=1\linewidth,]{Final_Project_Part_2_Group_27_files/figure-latex/plot_data-1}
 \caption{Left: Day-of-year seasonal temperature effects. Right: Deseasonalized series (black) and 365-day rolling mean (red).}
 \label{fig:data}
@@ -523,7 +535,7 @@ This indicates that the models understate the frequency of extreme temperature d
 
 \begin{figure}[htbp]
 \centering
-\setlength\abovecaptionskip{-10pt}
+\setlength\abovecaptionskip{0pt}
 \includegraphics[width=1\linewidth]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_qq_comp-1}
 \caption{Quantile-quantile plots of standardized one-step-ahead forecast errors for the Independent and Full W models.}
 \label{fig:qq}
@@ -536,7 +548,7 @@ A richer temporal model, such as an autoregressive disturbance component or a lo
 
 \begin{figure}[htbp]
 \centering
-\setlength\abovecaptionskip{-10pt}
+\setlength\abovecaptionskip{0pt}
 \includegraphics[width=1\linewidth]{Final_Project_Part_2_Group_27_files/figure-latex/plot_eval_acf_comp-1}
 \caption{Estimated autocorrelation functions of standardized one-step-ahead forecast errors for the Independent and Full W models.}
 \label{fig:acf}

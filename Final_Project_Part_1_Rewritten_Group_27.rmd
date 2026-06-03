@@ -19,8 +19,11 @@ header-includes:
 ```{r setup, include=FALSE}
 library(depmixS4)
 library(dlm)
-library(tidyverse)
 library(kableExtra)
+library(broom)
+library(scales)
+library(patchwork)
+library(tidyverse)
 
 knitr::opts_chunk$set(
   echo = FALSE,
@@ -36,7 +39,7 @@ knitr::opts_chunk$set(
 )
 
 set.seed(2706)
-theme_set(theme_classic(base_size = 11))
+theme_set(theme_classic(base_size = 9))
 theme_update(
   plot.title = element_text(hjust = 0.5),
   strip.background = element_blank(),
@@ -83,7 +86,7 @@ ggplot(data_ts, aes(x = time, y = anomaly)) +
   geom_line(alpha = 0.35) +
   geom_line(aes(y = rolling_10y), linewidth = 0.7, na.rm = TRUE) +
   geom_hline(yintercept = 0, linewidth = 0.25) +
-  labs(x = NULL, y = "Temperature anomaly (Celsius)")
+  labs(x = NULL, y = "Temperature anomaly (ºC)")
 ```
 
 
@@ -400,7 +403,6 @@ knitr::kable(
   linesep = "",
   escape = FALSE
 ) %>%
-  kable_styling(latex_options = "hold_position") %>%
   footnote(general = c("States reordered by mean anomaly.", "State 6 is absorbing; thus, the expected duration is infinite."), threeparttable = TRUE)
 ```
 
@@ -440,40 +442,36 @@ knitr::kable(
   caption = "\\label{tbl:hmm-comparison}HMM comparison.",
   digits = 1,
   escape = FALSE
-) %>%
-  kable_styling(latex_options = "hold_position")
+)
 ```
 
-
-
 ```{r dlm-helpers}
-set_initial_state <- function(mod, y0) {
+set_initial_state <- function(mod) {
   mod$m0 <- rep(0, length(mod$m0))
-  mod$m0[1] <- as.numeric(y0)
   mod$C0 <- diag(length(mod$m0)) * 1e7
   mod
 }
 
-build_rw_model <- function(par, y0) {
+build_rw_model <- function(par) {
   mod <- dlmModPoly(order = 1, dV = exp(par[1]), dW = exp(par[2]))
-  set_initial_state(mod, y0)
+  set_initial_state(mod)
 }
 
-build_llt_model <- function(par, y0) {
+build_llt_model <- function(par) {
   mod <- dlmModPoly(order = 2, dV = exp(par[1]), dW = exp(par[2:3]))
-  set_initial_state(mod, y0)
+  set_initial_state(mod)
 }
 
-build_llt_seasonal_model <- function(par, y0) {
+build_llt_seasonal_model <- function(par) {
   mod <- dlmModPoly(order = 2, dV = exp(par[1]), dW = exp(par[2:3])) +
-    dlmModSeas(12, dV = 0, dW = rep(exp(par[4]), 11))
-  set_initial_state(mod, y0)
+    dlmModSeas(12, dV = 0, dW = c(exp(par[4]), rep(0, 10)))
+  set_initial_state(mod)
 }
 
-fit_dlm_multi <- function(y, build_fun, starts, lower, upper) {
+fit_dlm_multi <- function(y, build_fun, starts) {
   fits <- lapply(starts, function(start) {
     tryCatch(
-      dlmMLE(y, parm = start, build = build_fun, hessian = TRUE, lower = lower, upper = upper),
+      dlmMLE(y, parm = start, build = build_fun, hessian = TRUE),
       error = function(e) NULL
     )
   })
@@ -489,7 +487,7 @@ transformed_se <- function(fit_obj) {
   V <- tryCatch(solve(H), error = function(e) matrix(NA, length(fit_obj$par), length(fit_obj$par)))
   var_log <- diag(V)
   est <- exp(fit_obj$par)
-  se <- ifelse(is.finite(var_log) & var_log >= 0, est * sqrt(var_log), NA_real_)
+  se <- ifelse(is.finite(var_log) & var_log >= 0, est * sqrt(var_log), NA)
   tibble(estimate = est, std.error = se)
 }
 
@@ -578,40 +576,27 @@ starts_seas <- list(
   c(log(0.03), log(1e-4), log(1e-8), log(1e-6))
 )
 
-lower_rw <- rep(log(1e-10), 2)
-lower_llt <- rep(log(1e-10), 3)
-lower_seas <- rep(log(1e-10), 4)
-upper_rw <- rep(log(10), 2)
-upper_llt <- rep(log(10), 3)
-upper_seas <- rep(log(10), 4)
-
 mle_rw <- fit_dlm_multi(
   y_sa,
-  build_fun = function(par) build_rw_model(par, y0 = y_sa[1]),
-  starts = starts_rw,
-  lower = lower_rw,
-  upper = upper_rw
+  build_fun = function(par) build_rw_model(par),
+  starts = starts_rw
 )
 
 mle_llt <- fit_dlm_multi(
   y_sa,
-  build_fun = function(par) build_llt_model(par, y0 = y_sa[1]),
-  starts = starts_llt,
-  lower = lower_llt,
-  upper = upper_llt
+  build_fun = function(par) build_llt_model(par),
+  starts = starts_llt
 )
 
 mle_seas <- fit_dlm_multi(
   y_raw,
-  build_fun = function(par) build_llt_seasonal_model(par, y0 = y_raw[1]),
-  starts = starts_seas,
-  lower = lower_seas,
-  upper = upper_seas
+  build_fun = function(par) build_llt_seasonal_model(par),
+  starts = starts_seas
 )
 
-mod_rw <- build_rw_model(mle_rw$par, y0 = y_sa[1])
-mod_llt <- build_llt_model(mle_llt$par, y0 = y_sa[1])
-mod_seas <- build_llt_seasonal_model(mle_seas$par, y0 = y_raw[1])
+mod_rw <- build_rw_model(mle_rw$par)
+mod_llt <- build_llt_model(mle_llt$par)
+mod_seas <- build_llt_seasonal_model(mle_seas$par)
 
 dlm_param_table <- bind_rows(
   transformed_se(mle_rw) %>%
@@ -621,44 +606,15 @@ dlm_param_table <- bind_rows(
   transformed_se(mle_seas) %>%
     mutate(Model = "LLT + seasonal", Parameter = c("sigma2", "tau2", "gamma2", "seasonal var"))
 ) %>%
-  mutate(
-    # `Near lower bound` = if_else(estimate < 1e-8, "yes", ""),
-    # std.error = if_else(`Near lower bound` == "yes", NA_real_, std.error)
-    std.error = if_else(estimate < 1e-8, NA_real_, std.error)
-  ) %>%
-  # select(Model, Parameter, Estimate = estimate, `S.E.` = std.error, `Near lower bound`)
+  mutate(std.error = if_else(estimate < 1e-8, NA, std.error)) %>%
   select(Model, Parameter, Estimate = estimate, `S.E.` = std.error)
 
-dlm_fit_sa_table <- bind_rows(
+dlm_fit_summary_table <- bind_rows(
   dlm_ic(mle_rw, length(y_sa)) %>% mutate(Model = "RW"),
-  dlm_ic(mle_llt, length(y_sa)) %>% mutate(Model = "LLT")
+  dlm_ic(mle_llt, length(y_sa)) %>% mutate(Model = "LLT"),
+  dlm_ic(mle_seas, length(y_raw)) %>% mutate(Model = "LLT + seasonal")
 ) %>%
   select(Model, `Log-likelihood`, AIC, BIC)
-
-dlm_fit_raw_table <- dlm_ic(mle_seas, length(y_raw)) %>%
-  mutate(Model = "LLT + seasonal", Series = "raw monthly") %>%
-  select(Model, Series, `Log-likelihood`, AIC, BIC)
-
-dlm_fit_summary_table <- bind_rows(
-  dlm_fit_sa_table %>%
-    select(Model, `Log-likelihood`, AIC, BIC),
-  dlm_fit_raw_table %>%
-    select(Model, `Log-likelihood`, AIC, BIC)
-)
-```
-
-```{r dlm-param-table}
-knitr::kable(
-  dlm_param_table,
-  format = "latex",
-  booktabs = TRUE,
-  caption = "\\label{tbl:dlm-params}DLM maximum likelihood estimates and asymptotic standard errors.",
-  digits = 6,
-  escape = FALSE,
-  linesep = c("", "\\addlinespace", "", "", "\\addlinespace", "", "", "")
-) %>%
-  kable_styling(latex_options = "hold_position") %>%
-  footnote(general = c("Variance parameters are on the original scale.", "Blank S.E. entries are omitted for parameters estimated at the numerical lower bound."), threeparttable = TRUE)
 ```
 
 ```{r dlm-fit-table}
@@ -667,11 +623,23 @@ knitr::kable(
   format = "latex",
   booktabs = TRUE,
   caption = "\\label{tbl:dlm-fit}DLM fit summary.",
-  digits = 2,
+  digits = 1,
   escape = FALSE
 ) %>%
-  kable_styling(latex_options = "hold_position") %>%
-  footnote(general = c("RW and LLT are fit on the seasonally adjusted series and thus are comparable.", "The LLT plus seasonal is fitted to the raw monthly series, so it's likelihood is not comparable."), threeparttable = TRUE)
+  footnote(general = c("LLT plus seasonal is fitted to the raw monthly series; it's likelihood is not directly comparable."), threeparttable = TRUE)
+```
+
+```{r dlm-param-table}
+knitr::kable(
+  dlm_param_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "\\label{tbl:dlm-params}DLM maximum likelihood estimates and asymptotic standard errors.",
+  digits = 4,
+  escape = FALSE,
+  linesep = c("", "\\addlinespace", "", "", "\\addlinespace", "", "", "")
+) %>%
+  footnote(general = c("Variance parameters are on the original scale.", "S.E. entries are omitted for near-zero parameters."), threeparttable = TRUE)
 ```
 
 ```{r dlm-smoothing-plots, fig.width=7, fig.height=4.7, fig.cap="Smoothed latent temperature level with 95\\% pointwise intervals."}
@@ -687,7 +655,7 @@ ggplot(smooth_plot_df, aes(x = time)) +
   geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.25) +
   geom_line(aes(y = estimate), linewidth = 0.45) +
   facet_wrap(~ model, ncol = 1) +
-  labs(x = NULL, y = "Temperature anomaly (Celsius)")
+  labs(x = NULL, y = "Temperature anomaly (ºC)")
 ```
 
 ```{r forecast-diagnostics, cache = TRUE}
@@ -700,7 +668,7 @@ make_train_periodic_sa <- function(y, n_train) {
   y - seasonal_full
 }
 
-forecast_eval <- function(y, build_model, start_list, lower, upper, model_name, years_test = 20) {
+forecast_eval <- function(y, build_model, start_list, model_name, years_test = 20) {
   n <- length(y)
   n_test <- years_test * frequency(y)
   n_train <- n - n_test
@@ -710,13 +678,11 @@ forecast_eval <- function(y, build_model, start_list, lower, upper, model_name, 
 
   fit_train <- fit_dlm_multi(
     y_train,
-    build_fun = function(par) build_model(par, y0 = y_train[1]),
-    starts = start_list,
-    lower = lower,
-    upper = upper
+    build_fun = function(par) build_model(par),
+    starts = start_list
   )
 
-  mod_train <- build_model(fit_train$par, y0 = y_train[1])
+  mod_train <- build_model(fit_train$par)
   filt_full <- dlmFilter(y, mod_train)
 
   f_vec <- as.numeric(filt_full$f)
@@ -736,11 +702,11 @@ forecast_eval <- function(y, build_model, start_list, lower, upper, model_name, 
   list(
     table = tibble(
       Model = model_name,
-      RMSE = sqrt(mean(err^2, na.rm = TRUE)),
+      Mean = mean(err^2, na.rm = TRUE),
+      RMFSE = sqrt(mean(err^2, na.rm = TRUE)),
       MAE = mean(abs(err), na.rm = TRUE),
       `ACF(1)` = acf_vals[2],
-      `ACF(2)` = acf_vals[3],
-      `Approx. 95\\% coverage` = mean(abs(std_err) <= 1.96, na.rm = TRUE)
+      `ACF(2)` = acf_vals[3]
     ),
     std_err = std_err
   )
@@ -757,8 +723,6 @@ fe_rw <- forecast_eval(
   y_sa_forecast,
   build_model = build_rw_model,
   start_list = starts_rw,
-  lower = lower_rw,
-  upper = upper_rw,
   model_name = "RW"
 )
 
@@ -766,8 +730,6 @@ fe_llt <- forecast_eval(
   y_sa_forecast,
   build_model = build_llt_model,
   start_list = starts_llt,
-  lower = lower_llt,
-  upper = upper_llt,
   model_name = "LLT"
 )
 
@@ -775,8 +737,6 @@ fe_seas <- forecast_eval(
   y_raw,
   build_model = build_llt_seasonal_model,
   start_list = starts_seas,
-  lower = lower_seas,
-  upper = upper_seas,
   model_name = "LLT + seasonal"
 )
 
@@ -793,20 +753,33 @@ knitr::kable(
   digits = 3,
   escape = FALSE
 ) %>%
-  kable_styling(latex_options = "hold_position") %>%
-  add_footnote("Seasonal adjustment for RW and LTT is estimated from the training sample only.")
+  footnote(general = "Seasonal adjustment for RW and LTT is estimated from the training sample only.", paste0("Mean level is: ", mean(y_raw)), threeparttable = TRUE)
 ```
 
 ```{r forecast-diagnostic-plot, fig.width=7, fig.height=3.2, fig.cap="Forecast-error diagnostics for the LLT plus seasonal DLM: standardized one-step-ahead errors on the final 20 years."}
-old_par <- par(no.readonly = TRUE)
-par(mfrow = c(1, 2), mar = c(4, 4, 2, 1), cex = 0.85)
-acf(std_err_preferred, main = "ACF of standardized errors", xlab = "Lag")
-qqnorm(
-  std_err_preferred,
-  main = "Normal QQ plot",
-  xlab = "Theoretical quantiles",
-  ylab = "Standardized errors"
-)
-qqline(std_err_preferred)
-par(old_par)
+tbl_std_err <- tibble(std_err_preferred)
+
+plot_acf <- tbl_std_err %>%
+    reframe(tidy(acf(std_err_preferred, lag.max = 60, plot = FALSE)), n = n()) %>%
+    filter(lag > 0) %>%
+    mutate(ci = qnorm(1 - 0.05/2)/sqrt(n)) %>%
+    ggplot(aes(x = lag, y = acf)) +
+    geom_hline(yintercept = 0, color = "grey50") +
+    geom_segment(aes(xend = lag, yend = 0)) +
+    geom_hline(aes(yintercept = ci), linetype = "dashed") +
+    geom_hline(aes(yintercept = -ci), linetype = "dashed") +
+    scale_x_continuous(breaks = pretty_breaks()) +
+    labs(
+      title = "ACF of standardized errors",
+      x = "Lag (months)",
+      y = NULL
+    )
+
+plot_qq <- tbl_std_err %>%
+  ggplot(aes(sample = std_err_preferred)) +
+  geom_qq_line() +
+  geom_qq(shape = ".") +
+  labs(title = "QQ plot")
+
+plot_acf + plot_qq
 ```

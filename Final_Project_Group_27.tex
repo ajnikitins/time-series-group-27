@@ -12,7 +12,7 @@
 \usepackage{siunitx}
 \usepackage{amsfonts}
 
-\usepackage{hyperref}
+\usepackage[hidelinks]{hyperref}
 \usepackage{float}
 \usepackage{booktabs}
 \usepackage{makecell}
@@ -45,7 +45,7 @@ This is important to note because the observations are not raw temperatures, so 
 \begin{figure}[bht]
 \setlength\abovecaptionskip{0pt}
 \centering
-\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/fig-raw-series-1}
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Group_27_files/figure-latex/fig-raw-series-1}
 \caption{Monthly Northern Hemisphere temperature anomalies (grey) and their 10-year moving average (black).\label{fig:fig-raw-series}}
 \end{figure}
 
@@ -61,7 +61,7 @@ For the modelling below, we remove this small residual seasonal component before
 \begin{figure}[thb]
 \setlength\abovecaptionskip{0pt}
 \centering
-\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/fig-stl-decomposition-1}
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Group_27_files/figure-latex/fig-stl-decomposition-1}
 \caption{STL decomposition of monthly temperature anomalies.}
 \label{fig:fig-stl-decomposition}
 \end{figure}
@@ -85,7 +85,7 @@ For model selection, we use likelihood criteria together with interpretability o
 \begin{figure}[bht]
 \setlength\abovecaptionskip{0pt}
 \centering
-\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/hmm-ic-plot-1}
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Group_27_files/figure-latex/hmm-ic-plot-1}
 \caption{Level-HMM fit measures by number of states.}
 \label{fig:hmm-ic-plot}
 \end{figure}
@@ -118,7 +118,7 @@ State & Interpretation & Mean anomaly & State sd & Occupancy share & Expected du
 \begin{figure}[htb]
 \setlength\abovecaptionskip{0pt}
 \centering
-\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/hmm-decoded-plot-1}
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Group_27_files/figure-latex/hmm-decoded-plot-1}
 \caption{Decoded states from the selected level HMM. Horizontal lines represent estimated state means.}
 \label{fig:hmm-decoded-plot}
 \end{figure}
@@ -211,7 +211,7 @@ LLT + seasonal & seasonal var & 0.0001 & 0.0000\\
 \begin{figure}[h]
 \setlength\abovecaptionskip{0pt}
 \centering
-\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/dlm-smoothing-plots-1}
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Group_27_files/figure-latex/dlm-smoothing-plots-1}
 \caption{Smoothed latent temperature level with 95\% pointwise intervals.}
 \label{fig:dlm-smoothing-plots}
 \end{figure}
@@ -253,7 +253,7 @@ LLT + seasonal & 0.004 & 0.175 & 0.135 & 0.246 & 0.051\\
 \begin{figure}[bht]
 \setlength\abovecaptionskip{0pt}
 \centering
-\includegraphics[width=1\linewidth]{Final_Project_Part_1_Rewritten_Group_27_files/figure-latex/forecast-diagnostic-plot-1}
+\includegraphics[width=1\linewidth]{Final_Project_Part_1_Group_27_files/figure-latex/forecast-diagnostic-plot-1}
 \caption{Forecast-error diagnostics for the LLT plus seasonal DLM: standardized one-step-ahead errors on the final 20 years.}
 \label{fig:forecast-diagnostic-plot}
 \end{figure}
@@ -293,7 +293,7 @@ After deseasonalization, Paso Robles has the warmest weather -- maximum temperat
 San Francisco has an average maximum daily temperature of \SI{18}{\celsius}; most days have maximum temperatures between \SI{10}{} and \SI{20}{\celsius}, with a fatter tail surpassing \SI{30}{\celsius}.
 Baker City has the coldest but most varied weather: average maximum daily temperatures are \SI{15}{\celsius}, ranging from freezing temperatures to approaching \SI{30}{\celsius}.
 
-Overall, the deseasonalized temperatures do not display any strong trends; thus, given that the goal is short-horizon preidction, random-walk plus noise models could be considered suitable for modelling this data.
+Overall, the deseasonalized temperatures do not display any strong trends; thus, given that the goal is short-horizon prediction, random-walk plus noise models could be considered suitable for modelling this data.
 
 \begin{figure}[htbp]
 \centering
@@ -331,7 +331,7 @@ This model assumes that both observation errors and latent temperature innovatio
 W = \operatorname{diag}(\sigma^2_{w,1},\sigma^2_{w,2},\sigma^2_{w,3}).
 \]
 
-\subsubsection*{2: Random walk with unrestricted error covariance (Full W)}
+\subsubsection*{2: Random walk with unrestricted state innovation covariance (Full W)}
 
 This model allows the latent temperature levels of different stations to move together, but the dependence is estimated freely.
 The state innovation covariance matrix is unrestricted positive definite:

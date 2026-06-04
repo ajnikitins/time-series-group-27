@@ -1,14 +1,14 @@
 ---
 title: "Final project Part 1"
-subtitle: "Bocconi University - 20236 Time Series Analysis \\linebreak Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Artūrs Jānis Ņikitins,
-  Madelief van Weerdenburg"
+subtitle: "Bocconi University - 20236 Time Series Analysis \\linebreak Group 27 | Anna-Bella Dreyfus, Emanuele Artoni, Arturs Janis Nikitins, Madelief van Weerdenburg"
 output:
   pdf_document:
+    keep_tex: true
     latex_engine: xelatex
     fig_caption: true
     extra_dependencies:
-        - float
-        - subfig
+      - float
+      - booktabs
 fontsize: 10pt
 geometry: margin=2cm
 header-includes:
@@ -17,326 +17,768 @@ header-includes:
 ---
 
 ```{r setup, include=FALSE}
-rm(list = ls())
-library(dlm)
-library(ggplot2)
-library(tseries)
-library(forecast)
-library(lmtest)
-library(sandwich)
-library(patchwork)
 library(depmixS4)
+library(dlm)
+library(kableExtra)
+library(broom)
+library(scales)
+library(patchwork)
 library(tidyverse)
 
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.pos = "H", fig.align = "center", out.extra = "", fig.width = 5, fig.height = 3, out.width = "67%")
-
-set_theme(theme_classic())
-update_theme(plot.title = element_text(hjust = 0.5), strip.background = element_blank())
-```
-
-```{r}
-df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
-monthly_matrix <- as.matrix(df[, 2:13])
-monthly_vector <- as.numeric(t(monthly_matrix))
-
-gistemp_ts <- ts(monthly_vector, start = c(1880, 1), frequency = 12)
-
-stl_decomp <- stl(gistemp_ts, s.window = "periodic")
-residual <- stl_decomp$time.series[,"remainder"]
-
-## tests
-# dickey fuller
-adf.test(gistemp_ts)
-
-
-# White test
-bptest(lm(residual ~ time(gistemp_ts)))
-```
-# Data exploration
-
-```{r, fig.width=9, fig.height=9, fig.cap="Monthly Northern Hemisphere temperature anomalies"}
-data_temp <- tibble(x = time(gistemp_ts), y = gistemp_ts)
-
-ggplot(data_temp, aes(x, y)) + geom_line() + geom_hline(yintercept = 0) + labs(x = NULL, y = "Temperature anomalies (°C)")
-```
-
-Gistemp, which is presented in Figure 1, shows the monthly evolution of temperature anomalies recorded in the northern hemisphere from 1880 to 2025. A quick visual inspection makes immediately evidences the presence of a long-run upward trend whose effect remained contained and fluctuating during the late 19th and most of the 20th century, and accelerated markedly from the 1990's. In particular, a temporary stabilization is visible around the mid-20th century, with a relatively flatter slope between 1940 and 1970 suggesting a slowdown.
-
-While the dispersion does not appear to increase with the mean, we ran a White test for heteroskedasticity, which rejects the null. Since the series contains negative anomalies, we prefer to impose an additive structure to the series, whereby the various components interact additively with one another, and account for heteroskedasticity later for inference tasks. To inspect the non-stationary quality of the series, we thus use the Loess algorithm to identify the trend, seasonal and irregular components, as evidenced in figure 2.
-
-```{r}
-plot_multi_ts_gg <- function(x,
-                             title = NULL,
-                             theme_fn = theme_bw,
-                             wrap_width = 45) {
-  df <- data.frame(
-    Time = as.numeric(time(x)),
-    as.data.frame(x)
-  )
-
-  df_long <- pivot_longer(
-    df,
-    cols = -Time,
-    names_to = "Series",
-    values_to = "Value"
-  )
-
-  ggplot(df_long, aes(Time, Value)) +
-    geom_line() +
-    facet_wrap(~ Series,
-               ncol = 1,
-               scales = "free_y") +
-    labs(
-      title = title,
-      x = "Time",
-      y = NULL
-    ) +
-    theme_fn() +
-    theme(
-      plot.title = element_text(hjust = 0.5),
-      strip.background = element_blank()
-    )
-}
-
-# old helper used back in feb
-# probs needs to be changed
-```
-
-
-```{r, fig.width=6, fig.height=4, fig.cap="Seasonal pattern across subsets (20 years each"}
-
-stl_fit <- stl(gistemp_ts, s.window = "periodic")
-
-trend <- stl_decomp$time.series[, "trend"]
-seasonal <- stl_decomp$time.series[, "seasonal"]
-residual <- stl_decomp$time.series[, "remainder"]
-
-N <- length(gistemp_ts) # 1752
-
-subset_maker <- function(size) {
-  n_subsets <- floor(N / size)
-  lapply(1:n_subsets, function(i) {
-    start <- (i - 1) * size + 1
-    end <- if (i == n_subsets) N else i * size
-    ts(gistemp_ts[start:end], frequency = 12, start = start(gistemp_ts)[1] + (i-1)*size/12)
-  })
-}
-
-subs_list <- subset_maker(240)
-
-
-
-
-
-stl_decomp <- stl(gistemp_ts, s.window = "periodic")
-
-stl_df <- data.frame(
-  time = time(gistemp_ts),
-  observed = as.numeric(gistemp_ts),
-  trend = stl_decomp$time.series[, "trend"],
-  residual = stl_decomp$time.series[, "remainder"]
+knitr::opts_chunk$set(
+  echo = FALSE,
+  warning = FALSE,
+  message = FALSE,
+  cache = FALSE,
+  fig.pos = "H",
+  fig.align = "center",
+  fig.width = 6,
+  fig.height = 3.2,
+  out.width = "100%",
+  dev = "cairo_pdf"
 )
 
-seasonal_list <- lapply(subs_list, function(sub) {
-  stl(sub, s.window = "periodic")$time.series[, "seasonal"]
-})
+set.seed(2706)
+theme_set(theme_classic(base_size = 9))
+theme_update(
+  plot.title = element_text(hjust = 0.5),
+  strip.background = element_blank(),
+  legend.position = "bottom"
+)
+options(knitr.kable.NA = "")
+```
 
-seasonal_patterns <- sapply(seasonal_list, function(s) s[1:12]) # random choice
+```{r data-preparation}
+# The first row of gistemp.csv is descriptive text; the second row contains names.
+gistemp_raw_df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
 
-seasonal_df <- as.data.frame(seasonal_patterns)
-seasonal_df$Month <- 1:12
+monthly_values <- gistemp_raw_df[, 2:13] %>%
+  as.matrix() %>%
+  t() %>%
+  as.numeric()
 
-seasonal_long <- seasonal_df %>%
-  pivot_longer(
-    cols = -Month,
-    names_to = "Subset",
-    values_to = "Seasonal_effect"
+gistemp_ts <- ts(monthly_values, start = c(1880, 1), frequency = 12)
+
+# Whole-sample STL for exploration and for in-sample HMM/DLM modelling.
+# The GISTEMP observations are anomalies, so this seasonal term is a residual
+# monthly anomaly effect, not the raw annual temperature cycle.
+stl_tv <- stl(gistemp_ts, s.window = 121, t.window = 241, robust = TRUE)
+trend_tv <- stl_tv$time.series[, "trend"]
+seasonal_tv <- stl_tv$time.series[, "seasonal"]
+remainder_tv <- stl_tv$time.series[, "remainder"]
+gistemp_sa <- gistemp_ts - seasonal_tv
+
+make_ts_df <- function(x, name = "value") {
+  tibble(
+    time = as.numeric(time(x)),
+    cycle = as.integer(cycle(x)),
+    !!name := as.numeric(x)
   )
-
-ggplot(seasonal_long, aes(x = Month, y = Seasonal_effect, group = Subset)) +
-  geom_line() +
-  scale_x_continuous(breaks = 1:12) +
-  labs(
-    x = "Month",
-    y = "Seasonal effect",
-    title = "Seasonal patterns across subsets"
-  ) +
-  theme_classic()
-
-
-```
-
-The decomposition makes our earlier observation about the changing slope of the trend concrete
-The annual cycle indicates late summer months characterized by negative seasonal effects, and fall/winter months that contribute positively to the recording of temperature anomalies. This may indicate that global warmnig has primarily manifested via less frigid winters rather than via significantly hotter summers.
-Expectedly, the residuals appear to be devoid of any structure, centered at zero and with constant variance.
-
-We have also repeated the analysis by considering a subsample that is more indicative of the most recent period of accelerated incurrence of anomalies, as it spans from 1975 to the present day.
-Our considerations appear robust to this change.
-
-```{r}
-
-residual <- stl_decomp$time.series[,"remainder"]
-seasonal <- stl_decomp$time.series[,"seasonal"]
-
-plot(seasonal)
-pacf(residual)
-acf(residual)
-
-```
-
-Considering this smaller sample, we may also determine the structure of the supposedly stationary, residual component. In particular, we compute the ac.f and partial ac.f of this time series, and conclude that it presents both MA and AR components, though identification would require numerical methods.
-
-# Evidence for global warming
-As we have commented, the observed series of temperature anomalies evolves in a complex manner through time, as periods of rapid acceleration follow others of relative calm, seasonal patterns are nonlinear, and changes can be sudden and unprecedented. For this reason, we may use standard time series analysis tools to make a case for the existence of global warming, that is, for an overall, long-run positive trend in observed anomalies.
-
-We may do this by considering simple state-space models, whereby we distinguish between an observed process $$Y_t$$ and a latent state process $$\theta_t$$. We assume that $$\theta_t$$ has the Markov dependence property, that the $$Y_t$$'s are mutually independent conditional on the latent process, and that $$Y_t$$ depends only on $$\theta_t$$. Then, we consider two cases: either the latent process is a discrete-valued random variable, in which case we construct a hidden Markov model, or it evolves smoothly over time.
-
-Evidently, the construction of the HMM requires us to identify a parametric emission model and the number of finite latent states and a parametric emission model. With regards to the first task, we assume that the conditional distribution of the observations is Gaussian, with parameteters $$Y_t \mid \theta_t = j \sim \mathcal{N}(\mu_j, \sigma^2_j) \quad \forall j$$. As for the assessment of the appropriate number of latent regimes, we estimate models with 2 to 8 states and compare them via log-likelihood and the standard IC.
-
-```{r}
-
-
-n_states <- 2:8
-aic_vals <- numeric(length(n_states))
-bic_vals <- numeric(length(n_states))
-loglik_vals <- numeric(length(n_states))
-
-for (i in seq_along(n_states)) {
-  mod <- depmix(gistemp_ts ~ 1, data = data.frame(y = as.numeric(gistemp_ts)), nstates = n_states[i])
-  fmod <- fit(mod, verbose = FALSE)
-  aic_vals[i] <- AIC(fmod)
-  bic_vals[i] <- BIC(fmod)
-  loglik_vals[i] <- logLik(fmod)
 }
 
-ic_df <- data.frame(
-  State = rep(n_states, 3),
-  value = c(aic_vals, bic_vals, loglik_vals),
-  indicator = rep(c("AIC", "BIC", "logLik"), each = length(n_states))
-)
-
-ggplot(ic_df, aes(x = State, y = value, color = indicator)) +
-  geom_line() +
-  scale_color_manual(values = c("AIC" = "red", "BIC" = "green", "logLik" = "blue")) +
-  theme_classic() +
-  labs(x = "State", y = NULL)
-
-
-# as in assignment 3, we exclude the models with the fewest and most states, and make final decision based on decoded seq. then one just iterates 3 times same code
-plots_list <- list()
-for (k in c(4, 5, 6)) {
-  mod <- depmix(gistemp_ts ~ 1, data = data.frame(y = as.numeric(gistemp_ts)), nstates = k)
-  fmod <- fit(mod, verbose = FALSE)
-
-  est_states <- posterior(fmod)$state
-  # for the h_lines as in assignment 3
-  state_means <- sapply(1:k, function(s) fmod@response[[s]][[1]]@parameters$coefficients)
-
-  # plotting
-  df <- data.frame(
-    time  = as.numeric(time(gistemp_ts)),
-    value = as.numeric(gistemp_ts),
-    state = factor(est_states)
-  )
-  means_df <- data.frame(
-    state     = factor(1:k),
-    state_mean = state_means
-  )
-
-  p <- ggplot(df, aes(x = time, y = value, color = state)) +
-    geom_point(size = 0.8, alpha = 0.7) +
-    geom_hline(data = means_df, aes(yintercept = state_mean, color = state)) +
-    labs(title = paste(k, "states"), x = NULL, y = "Temperature anomalies (°C)") +
-    theme_minimal() +
-    theme(legend.position = "none")
-
-  plots_list[[as.character(k)]] <- p
-}
-
-wrap_plots(
-  plots_list[["4"]],
-  plots_list[["5"]],
-  plots_list[["6"]],
-  nrow = 1,
-  guides = "collect"
-)
-
-
-
+data_ts <- make_ts_df(gistemp_ts, "anomaly") %>%
+  mutate(rolling_10y = as.numeric(stats::filter(anomaly, rep(1 / 120, 120), sides = 2)))
 ```
 
-Figure 3 includes both IC values for HMM specifications with different numbers of states, and the decoded sequence of hidden states associated to 3 model specifications.
-Figure 3a indicates that models with 2-3 states perform poorly, while BIC and log-likelihood plateaus for models with 5/6 states. Hence we inspect the decoded sequences of hidden states associated to the three model specifications, per Figure 3. While model selection is subjective, we believe that the 5-states model is to be preferred, as it lacks both the fequent regime switching that characterizes the 4-states model, and the potential overspecification induced by the inclusion of a sixth state.
 
-The general problem with the HMM approach is, as Figure 3 makes evident, that the state process primarily tracks the upward trend, and does not allow a value-adding interpretation of the state process as characterized by a distinct number of regimes, such as more or less anomalous, stable or chaotic.
+```{r fig-raw-series, fig.cap="Monthly Northern Hemisphere temperature anomalies (grey) and their 10-year moving average (black).", fig.height = 2.5}
+ggplot(data_ts, aes(x = time, y = anomaly)) +
+  geom_line(alpha = 0.35) +
+  geom_line(aes(y = rolling_10y), linewidth = 0.7, na.rm = TRUE) +
+  geom_hline(yintercept = 0, linewidth = 0.25) +
+  labs(x = NULL, y = "Temperature anomaly (ºC)")
+```
 
-While it is possible to partially obviate this problem by considering subsamples that are less dominated by the most recent, aggressive upward trend, the fundamental problem of applying HMMs to this series would remain: $$\theta_t$$ is a continuously evolving trend, and forcing a strict, discrete categorization, while tidy, is incapable of explanation.
 
-For this reason, we may turn to dynamic linear models, whereby the state process is assumed to evolve continuosly according to a Gaussian distribution. We consider a local linear trend model, as it allows both level and slope to evolve. In particular, we present the full time series as the additive result of two three components: $$Y_t = Y_t^{1}+Y_t^{2}+Y_t^{3}$$ where the first component indicates the trend; the second seasonality; the third the residual. We then fit one DLM to each component, and then analyze the aggregate DLM.
+```{r fig-stl-decomposition, fig.width=7, fig.height=3, fig.cap="STL decomposition of monthly temperature anomalies."}
+decomp_df <- tibble(
+  time = as.numeric(time(gistemp_ts)),
+  Observed = as.numeric(gistemp_ts),
+  Trend = as.numeric(trend_tv),
+  Seasonal = as.numeric(seasonal_tv),
+  Remainder = as.numeric(remainder_tv)
+) %>%
+  pivot_longer(-time, names_to = "Component", values_to = "value") %>%
+  mutate(Component = factor(Component, levels = c("Observed", "Trend", "Seasonal", "Remainder")))
 
-```{r}
-set.seed(88888)
-fit_trend <- dlmMLE(trend, parm = c(0.1, 0.01, 0.01), # random non zero starting values
-  build = function(p) {
-    dlmModPoly(2, dV = exp(p[1]), dW = exp(p[2:3]))
+decomp_df %>%
+  filter(Component != "Observed") %>%
+  ggplot(aes(x = time, y = value)) +
+    geom_line(linewidth = 0.35) +
+    facet_wrap(~ Component, ncol = 1, scales = "free_y") +
+    labs(x = NULL, y = NULL)
+```
+
+```{r hmm-helpers}
+fit_hmm_once <- function(data, k, type = c("level", "trend"), ltr = FALSE) {
+  form <- switch(
+    type,
+    "trend" = y ~ t_decade,
+    "level" = y ~ 1,
+    "ltr" = y ~ t_decade
+  )
+
+  if (ltr) {
+    row_id <- rep(seq_len(k), each = k)
+    col_id <- rep(seq_len(k), times = k)
+
+    allowed <- (col_id == row_id) | (row_id < k & col_id == row_id + 1)
+
+    A0 <- diag(k)
+
+    for (i in 1:(k-1)) {
+      A0[i, (i + 1)] <- 0.05
     }
+
+    mod <- depmix(form, data = data, trstart = c(t(A0)), instart = c(1, rep(0, k-1)), nstates = k)
+
+    pars <- getpars(mod)
+    fixed <- getpars(mod, which = "fixed")
+
+    # Parameter layout:
+    # 1:K                     initial probabilities
+    # (K + 1):(K + K^2)        transition probabilities
+    # remaining               response parameters
+
+    prior_idx <- 1:k
+    trans_idx <- k + seq_len(k * k)
+
+    # Fix initial state probabilities: always start in state 1
+    fixed[prior_idx] <- TRUE
+
+    # Fix forbidden transitions to zero
+    fixed[trans_idx[!allowed]] <- TRUE
+
+    # Fix final row: state k is absorbing
+    fixed[trans_idx[row_id == k]] <- TRUE
+
+    capture.output(fit_obj <- fit(mod, fixed = fixed, verbose = FALSE))
+  } else {
+    mod <- depmix(form, data = data, nstates = k)
+    capture.output(fit_obj <- fit(mod, verbose = FALSE))
+  }
+
+  fit_obj
+}
+
+fit_hmm_repeated <- function(data, k, type = c("level", "trend"), ltr = FALSE, n_runs = 25) {
+  fits <- lapply(seq_len(n_runs), function(run_id) {
+    fit_obj <- fit_hmm_once(data, k, type = type, ltr = ltr)
+    if (is.null(fit_obj)) return(NULL)
+
+    tibble(
+      run = run_id,
+      fit = list(fit_obj),
+      logLik = as.numeric(logLik(fit_obj)),
+      AIC = AIC(fit_obj),
+      BIC = BIC(fit_obj)
+    )
+  }) %>%
+    bind_rows()
+
+  if (nrow(fits) == 0) return(NULL)
+
+  best <- fits %>%
+    filter(is.finite(logLik)) %>%
+    slice_max(logLik, n = 1, with_ties = FALSE)
+
+  if (nrow(best) == 0) return(NULL)
+
+  tibble(
+    k = k,
+    fit = list(best$fit[[1]]),
+    logLik = best$logLik,
+    AIC = best$AIC,
+    BIC = best$BIC,
+    best_run = best$run,
+    successful_runs = nrow(fits),
+    logLik_range = max(fits$logLik, na.rm = TRUE) - min(fits$logLik, na.rm = TRUE)
+  )
+}
+
+fit_hmm_grid <- function(data, states = 2:8, type = c("level", "trend"), ltr = FALSE, n_runs = 25) {
+  out <- lapply(states, function(k) {
+    fit_hmm_repeated(data, k, type = type, ltr = ltr, n_runs = n_runs)
+  })
+
+  bind_rows(out)
+}
+
+extract_transition <- function(fit_obj) {
+  k <- fit_obj@nstates
+  pars <- getpars(fit_obj)
+  matrix(pars[(k + 1):(k + k * k)], nrow = k, byrow = TRUE)
+}
+
+extract_level_params <- function(fit_obj) {
+  k <- fit_obj@nstates
+  tibble(
+    original_state = seq_len(k),
+    mean = sapply(seq_len(k), function(s) as.numeric(fit_obj@response[[s]][[1]]@parameters$coefficients[1])),
+    sd = sapply(seq_len(k), function(s) as.numeric(fit_obj@response[[s]][[1]]@parameters$sd))
+  ) %>%
+    arrange(mean) %>%
+    mutate(state = row_number())
+}
+
+extract_trend_params <- function(fit_obj, data) {
+  k <- fit_obj@nstates
+  params <- tibble(
+    original_state = seq_len(k),
+    intercept = sapply(seq_len(k), function(s) as.numeric(fit_obj@response[[s]][[1]]@parameters$coefficients[1])),
+    slope = sapply(seq_len(k), function(s) as.numeric(fit_obj@response[[s]][[1]]@parameters$coefficients[2])),
+    sd = sapply(seq_len(k), function(s) as.numeric(fit_obj@response[[s]][[1]]@parameters$sd))
   )
 
-fit_seas <- dlmMLE(seasonal, parm = c(0.1, -10),
-  build = function(p) {
-    dlmModSeas(
-      12, # the cycle components
-      dV = exp(p[1]),
-      dW = rep(exp(p[2]), 11) # one var instead of 11 different ones (11 df's). i dont wanna set dW = 0 because of the analysis i ran earlier. to compensate, see the very low starting value above.
-    )
-  }
-)
-
-fit_residual <- dlmMLE(residual, parm = c(0.1, 0.01), build = function(p) {
-  dlmModPoly(1, dV = exp(p[1]), dW = exp(p[2])) # rw + noise
+  params %>%
+    mutate(midpoint_mean = intercept + slope * median(data$t_decade)) %>%
+    arrange(midpoint_mean) %>%
+    mutate(state = row_number())
 }
+
+extract_params <- \(fit_obj, type, data) {
+  if (type %in% c("level")) {
+    extract_level_params(fit_obj)
+  } else {
+    extract_trend_params(fit_obj, data)
+  }
+}
+
+get_decoded <- function(fit_obj, data, type = c("level", "trend")) {
+  k <- fit_obj@nstates
+  decoded <- posterior(fit_obj, type = "viterbi")
+
+  if (type %in% c("level")) {
+    params <- extract_level_params(fit_obj)
+    ord <- params$original_state
+  } else if (type %in% c("trend")) {
+    params <- extract_trend_params(fit_obj, data)
+    ord <- params$original_state
+  }
+
+  map <- integer(k)
+  map[ord] <- seq_len(k)
+
+  names(decoded) <- c("state", paste0("S", map))
+
+  tibble(
+    time = data$time,
+    y = data$y,
+    state = map[decoded$state],
+    decoded[,-1]
+  )
+}
+
+count_switches <- function(fit_obj, data, type = c("level", "trend")) {
+  d <- get_decoded(fit_obj, data, type = type)$state
+  sum(diff(d) != 0)
+}
+```
+
+```{r hmm-fit, cache = TRUE}
+data_hmm <- tibble(
+  time = as.numeric(time(gistemp_sa)),
+  t_decade = (as.numeric(time(gistemp_sa)) - min(as.numeric(time(gistemp_sa)))) / 10,
+  y = as.numeric(gistemp_sa),
 )
 
-# create different model for each component
-mod_trend  <- dlmModPoly(2, dV = exp(fit_trend$par[1]),  dW = exp(fit_trend$par[2:3]))
-mod_seas <- dlmModSeas(
-  12,
-  dV = exp(fit_seas$par[1]),
-  dW = rep(exp(fit_seas$par[2]), 11)
+hmm_n_runs <- 25
+
+hmm_level_grid <- fit_hmm_grid(data_hmm, states = 2:8, type = "level", n_runs = hmm_n_runs) %>%
+  mutate(decoded_switches = map2_int(fit, k, ~ count_switches(.x, data_hmm, type = "level")))
+
+hmm_trend_grid <- fit_hmm_grid(data_hmm, states = 2:6, type = "trend", n_runs = hmm_n_runs) %>%
+  mutate(decoded_switches = map2_int(fit, k, ~ count_switches(.x, data_hmm, type = "trend")))
+
+hmm_trend_ltr_grid <- fit_hmm_grid(data_hmm, states = 2:6, type = "trend", ltr = TRUE, n_runs = hmm_n_runs) %>%
+  mutate(decoded_switches = map2_int(fit, k, ~ count_switches(.x, data_hmm, type = "trend")))
+
+hmm_grid <- tibble(
+  type = c("level", "trend", "trend"),
+  ltr = c(FALSE, FALSE, TRUE),
+  grid = list(hmm_level_grid, hmm_trend_grid, hmm_trend_ltr_grid)
+) %>%
+  unnest(grid)
+```
+
+```{r hmm_selection}
+model_decoded <- hmm_grid %>%
+  reframe(get_decoded(fit[[1]], data_hmm, type = type), .by = c(type, ltr, k))
+
+model_params <- hmm_grid %>%
+  reframe(extract_params(fit[[1]], type, data_hmm), .by = c(type, ltr, k)) %>%
+  mutate(intercept = coalesce(intercept, mean), slope = replace_na(slope, 0))
+
+selected_k <- 6
+# selected_k <- 4
+selected_hmm <- hmm_level_grid %>%
+  filter(k == selected_k) %>%
+  pull(fit) %>%
+  .[[1]]
+
+selected_decoded <- get_decoded(selected_hmm, data_hmm, type = "level")
+selected_params <- extract_level_params(selected_hmm)
+selected_order <- selected_params$original_state
+
+trans_selected <- extract_transition(selected_hmm)[selected_order, selected_order]
+occupancy_selected <- selected_decoded %>%
+  count(state, name = "n") %>%
+  mutate(occupancy = n / sum(n))
+
+state_names <- c("very low", "low", "middle", "partly high", "high", "very high")
+hmm_param_table <- selected_params %>%
+  left_join(occupancy_selected, by = "state") %>%
+  mutate(
+    interpretation = state_names[state],
+    self_transition = diag(trans_selected),
+    expected_duration_num = if_else(self_transition < 0.995, 1 / (1 - self_transition), NA_real_),
+    expected_duration = if_else(
+      is.na(expected_duration_num),
+      "",
+      # "absorbing in sample",
+      sprintf("%.1f", expected_duration_num)
+    )
+  ) %>%
+  transmute(
+    State = state,
+    Interpretation = interpretation,
+    `Mean anomaly` = mean,
+    # `Intercept` = intercept,
+    # `Slope` = slope,
+    `State sd` = sd,
+    `Occupancy share` = occupancy,
+    # `Self-transition prob.` = self_transition,
+    `Expected duration` = expected_duration
+  )
+
+best_level_bic <- hmm_level_grid %>%
+  slice_min(BIC, n = 1, with_ties = FALSE)
+
+best_trend_bic <- hmm_trend_grid %>%
+  slice_min(BIC, n = 1, with_ties = FALSE)
+
+best_trend_ltr_bic <- hmm_trend_ltr_grid %>%
+  slice_min(BIC, n = 1, with_ties = FALSE)
+
+hmm_comparison_table <- bind_rows(
+  hmm_level_grid %>% filter(k == selected_k) %>% mutate(Specification = "Level HMM, selected"),
+  best_level_bic %>% mutate(Specification = "Level HMM, min BIC"),
+  best_trend_bic %>% mutate(Specification = "Trend HMM, min BIC"),
+  best_trend_ltr_bic %>% mutate(Specification = "LTR trend HMM, min BIC")
+) %>%
+  transmute(
+    Specification,
+    States = k,
+    `Log-likelihood` = logLik,
+    AIC,
+    BIC,
+    `Decoded switches` = decoded_switches,
+    # `Successful runs` = successful_runs,
+    # `LogLik range` = logLik_range
+  )
+```
+
+```{r hmm-ic-plot, fig.width=7, fig.height=2, fig.cap="Level-HMM fit measures by number of states."}
+hmm_ic_plot_data <- hmm_level_grid %>%
+  select(k, `Log-likelihood` = logLik, AIC, BIC) %>%
+  pivot_longer(-k, names_to = "criterion", values_to = "value") %>%
+  mutate(criterion = factor(criterion, levels = c("Log-likelihood", "AIC", "BIC")))
+
+ggplot(hmm_ic_plot_data, aes(x = k, y = value)) +
+  geom_line() +
+  geom_point(size = 1.4) +
+  facet_wrap(~ criterion, scales = "free_y", nrow = 1) +
+  scale_x_continuous(breaks = 2:8) +
+  labs(x = "Number of states", y = NULL)
+```
+
+```{r hmm-param-table}
+knitr::kable(
+  hmm_param_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "\\label{tbl:hmm-params}Selected 6-state level HMM parameters.",
+  digits = 3,
+  linesep = "",
+  escape = FALSE
+) %>%
+  footnote(general = c("States reordered by mean anomaly.", "State 6 is absorbing; thus, the expected duration is infinite."), threeparttable = TRUE)
+```
+
+```{r hmm-decoded-plot, fig.width=7, fig.height=4, fig.cap="Decoded states from the selected level HMM. Horizontal lines represent estimated state means."}
+ggplot(selected_decoded, aes(x = time, y = y)) +
+  geom_line(alpha = 0.25) +
+  geom_point(aes(color = factor(state)), size = 1, alpha = 0.7) +
+  geom_hline(data = selected_params, aes(yintercept = mean, color = factor(state)), linewidth = 0.35) +
+  labs(x = NULL, y = "Seasonally adjusted anomaly", color = "State") +
+  scale_color_viridis_d() +
+  guides(colour = guide_legend(nrow = 1))
+```
+
+```{r hmm-decoded-plot-tot, fig.width=8, fig.height=12, fig.cap="Decoded states from the all considered HMMs. Horizontal lines represent estimated state means."}
+model_decoded %>%
+  ggplot(aes(x = time, y = y)) +
+  geom_line(alpha = 0.25) +
+  geom_point(aes(color = factor(state)), size = 1, alpha = 0.7) +
+  geom_abline(data = model_params, aes(slope = slope, intercept = intercept, color = factor(state))) +
+  labs(x = NULL, y = "Seasonally adjusted anomaly", color = "State") +
+  scale_color_viridis_d() +
+  facet_grid(k ~ type + ltr)
+
+model_decoded %>%
+  pivot_longer(starts_with("S", ignore.case = FALSE), names_to = "prob_state", names_prefix = "S", values_to = "prob", values_drop_na = TRUE) %>%
+  mutate(prob = zoo::rollmean(prob, k = 240, fill = NA), .by = c(type, ltr, k, prob_state)) %>%
+  ggplot(aes(x = time, y = prob, color = prob_state)) +
+  geom_line() +
+  facet_grid(k ~ type + ltr)
+```
+
+```{r hmm-comparison-table}
+knitr::kable(
+  hmm_comparison_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "\\label{tbl:hmm-comparison}HMM comparison.",
+  digits = 1,
+  escape = FALSE
 )
-mod_residual  <- dlmModPoly(1, dV = exp(fit_residual$par[1]), dW = exp(fit_residual$par[2]))
+```
 
-# aggregate
-aggr_mod <- mod_trend + mod_seas + mod_residual
+```{r dlm-helpers}
+set_initial_state <- function(mod) {
+  mod$m0 <- rep(0, length(mod$m0))
+  mod$C0 <- diag(length(mod$m0)) * 1e7
+  mod
+}
 
-# i think we wanna do smoothing
-smooth_total <- dlmSmooth(gistemp_ts, mod = aggr_mod)
-smooth_level <- dropFirst(smooth_total$s[, 1]) # because of the prior
-smooth_slope <- dropFirst(smooth_total$s[, 2])
-time_index <- time(gistemp_ts)
+build_rw_model <- function(par) {
+  mod <- dlmModPoly(order = 1, dV = exp(par[1]), dW = exp(par[2]))
+  set_initial_state(mod)
+}
 
-plot(time_index, smooth_slope,
-     type = "l",
-     xlab = "Year",
-     ylab = "Smoothed trend slope",
-     main = "Estimated warming rate over time")
-abline(h = 0, lty = 2)
+build_llt_model <- function(par) {
+  mod <- dlmModPoly(order = 2, dV = exp(par[1]), dW = exp(par[2:3]))
+  set_initial_state(mod)
+}
 
-# this is disappointing
+build_llt_seasonal_model <- function(par) {
+  mod <- dlmModPoly(order = 2, dV = exp(par[1]), dW = exp(par[2:3])) +
+    dlmModSeas(12, dV = 0, dW = c(exp(par[4]), rep(0, 10)))
+  set_initial_state(mod)
+}
 
+fit_dlm_multi <- function(y, build_fun, starts) {
+  fits <- lapply(starts, function(start) {
+    tryCatch(
+      dlmMLE(y, parm = start, build = build_fun, hessian = TRUE),
+      error = function(e) NULL
+    )
+  })
 
+  fits <- Filter(function(x) !is.null(x) && is.finite(x$value), fits)
+  if (length(fits) == 0) stop("All DLM optimizations failed.")
 
-seas_start <- 3
-seas_end <- 13
+  fits[[which.min(sapply(fits, function(x) x$value))]]
+}
 
-trend_level <- dropFirst(smooth_total$s[, 1])
-trend_slope <- dropFirst(smooth_total$s[, 2])
-seasonal_states <- dropFirst(smooth_total$s[, seas_start:seas_end])
+transformed_se <- function(fit_obj) {
+  H <- (fit_obj$hessian + t(fit_obj$hessian)) / 2
+  V <- tryCatch(solve(H), error = function(e) matrix(NA, length(fit_obj$par), length(fit_obj$par)))
+  var_log <- diag(V)
+  est <- exp(fit_obj$par)
+  se <- ifelse(is.finite(var_log) & var_log >= 0, est * sqrt(var_log), NA)
+  tibble(estimate = est, std.error = se)
+}
 
-plot(time_index, trend_level,
-     type = "l",
-     xlab = "Year",
-     ylab = "Trend level",
-     main = "Smoothed long-run temperature anomaly trend")
+dlm_ic <- function(fit_obj, n_obs) {
+  p <- length(fit_obj$par)
+  tibble(
+    `Log-likelihood` = -fit_obj$value,
+    AIC = 2 * fit_obj$value + 2 * p,
+    BIC = 2 * fit_obj$value + log(n_obs) * p
+  )
+}
 
+svd_var_list <- function(U, D) {
+  vars <- dlmSvd2var(U, D)
+  if (is.array(vars) && length(dim(vars)) == 3) {
+    lapply(seq_len(dim(vars)[3]), function(i) vars[, , i, drop = FALSE][, , 1])
+  } else {
+    vars
+  }
+}
+
+smooth_state_df <- function(y, mod, model_name, state_index = 1, scale = 1) {
+  sm <- dlmSmooth(y, mod)
+  s_mat <- as.matrix(sm$s)
+  est <- as.numeric(s_mat[-1, state_index]) * scale
+
+  vars <- svd_var_list(sm$U.S, sm$D.S)
+  if (length(vars) == length(y) + 1) vars <- vars[-1]
+  vars <- vars[seq_len(length(y))]
+  sd_state <- sqrt(sapply(vars, function(v) v[state_index, state_index])) * scale
+
+  tibble(
+    time = as.numeric(time(y)),
+    observed = as.numeric(y),
+    model = model_name,
+    estimate = est,
+    lower = est - qnorm(0.975) * sd_state,
+    upper = est + qnorm(0.975) * sd_state
+  )
+}
+
+standardized_innovations <- function(y, mod, filt = NULL) {
+  if (is.null(filt)) filt <- dlmFilter(y, mod)
+
+  y_vec <- as.numeric(y)
+  f_vec <- as.numeric(filt$f)
+  if (length(f_vec) == length(y_vec) + 1) f_vec <- f_vec[-1]
+  if (length(f_vec) > length(y_vec)) f_vec <- tail(f_vec, length(y_vec))
+  f_vec <- f_vec[seq_along(y_vec)]
+
+  R_vars <- svd_var_list(filt$U.R, filt$D.R)
+  if (length(R_vars) == length(y_vec) + 1) R_vars <- R_vars[-1]
+  if (length(R_vars) > length(y_vec)) R_vars <- tail(R_vars, length(y_vec))
+  R_vars <- R_vars[seq_along(y_vec)]
+
+  FF <- mod$FF
+  if (is.null(dim(FF))) FF <- matrix(FF, nrow = 1)
+  V <- mod$V
+  if (is.null(dim(V))) V <- matrix(V, nrow = 1)
+
+  q <- sapply(R_vars, function(R) as.numeric(FF %*% R %*% t(FF) + V))
+  (y_vec - f_vec) / sqrt(q)
+}
+```
+
+```{r dlm-fit, cache = TRUE}
+y_sa <- ts(as.numeric(gistemp_sa), start = start(gistemp_ts), frequency = 12)
+y_raw <- gistemp_ts
+
+starts_rw <- list(
+  c(log(0.02), log(0.005)),
+  c(log(0.05), log(0.001)),
+  c(log(0.01), log(0.01)),
+  c(log(0.03), log(1e-4))
+)
+starts_llt <- list(
+  c(log(0.02), log(0.005), log(1e-8)),
+  c(log(0.05), log(0.001), log(1e-7)),
+  c(log(0.01), log(0.01), log(1e-6)),
+  c(log(0.03), log(1e-4), log(1e-8))
+)
+starts_seas <- list(
+  c(log(0.02), log(0.005), log(1e-8), log(1e-6)),
+  c(log(0.05), log(0.001), log(1e-7), log(1e-5)),
+  c(log(0.01), log(0.01), log(1e-6), log(1e-4)),
+  c(log(0.03), log(1e-4), log(1e-8), log(1e-6))
+)
+
+mle_rw <- fit_dlm_multi(
+  y_sa,
+  build_fun = function(par) build_rw_model(par),
+  starts = starts_rw
+)
+
+mle_llt <- fit_dlm_multi(
+  y_sa,
+  build_fun = function(par) build_llt_model(par),
+  starts = starts_llt
+)
+
+mle_seas <- fit_dlm_multi(
+  y_raw,
+  build_fun = function(par) build_llt_seasonal_model(par),
+  starts = starts_seas
+)
+
+mod_rw <- build_rw_model(mle_rw$par)
+mod_llt <- build_llt_model(mle_llt$par)
+mod_seas <- build_llt_seasonal_model(mle_seas$par)
+
+dlm_param_table <- bind_rows(
+  transformed_se(mle_rw) %>%
+    mutate(Model = "RW", Parameter = c("sigma2", "tau2")),
+  transformed_se(mle_llt) %>%
+    mutate(Model = "LLT", Parameter = c("sigma2", "tau2", "gamma2")),
+  transformed_se(mle_seas) %>%
+    mutate(Model = "LLT + seasonal", Parameter = c("sigma2", "tau2", "gamma2", "seasonal var"))
+) %>%
+  mutate(std.error = if_else(estimate < 1e-8, NA, std.error)) %>%
+  select(Model, Parameter, Estimate = estimate, `S.E.` = std.error)
+
+dlm_fit_summary_table <- bind_rows(
+  dlm_ic(mle_rw, length(y_sa)) %>% mutate(Model = "RW"),
+  dlm_ic(mle_llt, length(y_sa)) %>% mutate(Model = "LLT"),
+  dlm_ic(mle_seas, length(y_raw)) %>% mutate(Model = "LLT + seasonal")
+) %>%
+  select(Model, `Log-likelihood`, AIC, BIC)
+```
+
+```{r dlm-fit-table}
+knitr::kable(
+  dlm_fit_summary_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "\\label{tbl:dlm-fit}DLM fit summary.",
+  digits = 1,
+  escape = FALSE
+) %>%
+  footnote(general = c("LLT plus seasonal is fitted to the raw monthly series; its likelihood is not directly comparable."), threeparttable = TRUE)
+```
+
+```{r dlm-param-table}
+knitr::kable(
+  dlm_param_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "\\label{tbl:dlm-params}DLM maximum likelihood estimates and asymptotic standard errors.",
+  digits = 4,
+  escape = FALSE,
+  linesep = c("", "\\addlinespace", "", "", "\\addlinespace", "", "", "")
+) %>%
+  footnote(general = c("Variance parameters are on the original scale.", "S.E. entries are omitted for near-zero parameters."), threeparttable = TRUE)
+```
+
+```{r dlm-smoothing-plots, fig.width=7, fig.height=4.7, fig.cap="Smoothed latent temperature level with 95\\% pointwise intervals."}
+smooth_rw <- smooth_state_df(y_sa, mod_rw, "RW", state_index = 1)
+smooth_llt <- smooth_state_df(y_sa, mod_llt, "LLT", state_index = 1)
+smooth_seas <- smooth_state_df(y_raw, mod_seas, "LLT + seasonal", state_index = 1)
+
+smooth_plot_df <- bind_rows(smooth_rw, smooth_llt, smooth_seas) %>%
+  mutate(model = factor(model, levels = c("RW", "LLT", "LLT + seasonal")))
+
+ggplot(smooth_plot_df, aes(x = time)) +
+  geom_point(aes(y = observed), alpha = 0.16, size = 0.25) +
+  geom_ribbon(aes(ymin = lower, ymax = upper), alpha = 0.25) +
+  geom_line(aes(y = estimate), linewidth = 0.45) +
+  facet_wrap(~ model, ncol = 1) +
+  labs(x = NULL, y = "Temperature anomaly (ºC)")
+```
+
+```{r forecast-diagnostics, cache = TRUE}
+make_train_periodic_sa <- function(y, n_train) {
+  y_train <- ts(as.numeric(y)[seq_len(n_train)], start = start(y), frequency = frequency(y))
+  stl_train <- stl(y_train, s.window = "periodic", robust = TRUE)
+  seasonal_train <- as.numeric(stl_train$time.series[, "seasonal"])
+  month_effect <- tapply(seasonal_train, cycle(y_train), mean)
+  seasonal_full <- ts(as.numeric(month_effect[cycle(y)]), start = start(y), frequency = frequency(y))
+  y - seasonal_full
+}
+
+forecast_eval <- function(y, build_model, start_list, model_name, years_test = 20) {
+  n <- length(y)
+  n_test <- years_test * frequency(y)
+  n_train <- n - n_test
+
+  y_train <- ts(as.numeric(y)[seq_len(n_train)], start = start(y), frequency = frequency(y))
+  y_vec <- as.numeric(y)
+
+  fit_train <- fit_dlm_multi(
+    y_train,
+    build_fun = function(par) build_model(par),
+    starts = start_list
+  )
+
+  mod_train <- build_model(fit_train$par)
+  filt_full <- dlmFilter(y, mod_train)
+
+  f_vec <- as.numeric(filt_full$f)
+  if (length(f_vec) == length(y_vec) + 1) f_vec <- f_vec[-1]
+  if (length(f_vec) > length(y_vec)) f_vec <- tail(f_vec, length(y_vec))
+  f_vec <- f_vec[seq_along(y_vec)]
+
+  std_full <- standardized_innovations(y, mod_train, filt_full)
+
+  idx_test <- (n_train + 1):n
+  err <- y_vec[idx_test] - f_vec[idx_test]
+  std_err <- std_full[idx_test]
+  std_err <- std_err[is.finite(std_err)]
+
+  acf_vals <- acf(std_err, plot = FALSE, lag.max = 2)$acf
+
+  list(
+    table = tibble(
+      Model = model_name,
+      Mean = mean(err, na.rm = TRUE),
+      RMSFE = sqrt(mean(err^2, na.rm = TRUE)),
+      MAE = mean(abs(err), na.rm = TRUE),
+      `ACF(1)` = acf_vals[2],
+      `ACF(2)` = acf_vals[3]
+    ),
+    std_err = std_err
+  )
+}
+
+n_test <- 20 * frequency(y_raw)
+n_train <- length(y_raw) - n_test
+
+# For RW and LLT forecast diagnostics, use a seasonal adjustment estimated only
+# from the training sample to avoid leaking test information through STL.
+y_sa_forecast <- make_train_periodic_sa(y_raw, n_train = n_train)
+
+fe_rw <- forecast_eval(
+  y_sa_forecast,
+  build_model = build_rw_model,
+  start_list = starts_rw,
+  model_name = "RW"
+)
+
+fe_llt <- forecast_eval(
+  y_sa_forecast,
+  build_model = build_llt_model,
+  start_list = starts_llt,
+  model_name = "LLT"
+)
+
+fe_seas <- forecast_eval(
+  y_raw,
+  build_model = build_llt_seasonal_model,
+  start_list = starts_seas,
+  model_name = "LLT + seasonal"
+)
+
+forecast_table <- bind_rows(fe_rw$table, fe_llt$table, fe_seas$table)
+std_err_preferred <- fe_seas$std_err
+```
+
+```{r forecast-tables}
+knitr::kable(
+  forecast_table,
+  format = "latex",
+  booktabs = TRUE,
+  caption = "\\label{tbl:forecast-sa}One-step-ahead forecast diagnostics on the final 20 years.",
+  digits = 3,
+  escape = FALSE
+) %>%
+  footnote(general = "Seasonal adjustment for RW and LLT is estimated from the training sample only.", threeparttable = TRUE)
+```
+
+```{r forecast-diagnostic-plot, fig.width=7, fig.height=3.2, fig.cap="Forecast-error diagnostics for the LLT plus seasonal DLM: standardized one-step-ahead errors on the final 20 years."}
+tbl_std_err <- tibble(std_err_preferred)
+
+plot_acf <- tbl_std_err %>%
+    reframe(tidy(acf(std_err_preferred, lag.max = 60, plot = FALSE)), n = n()) %>%
+    filter(lag > 0) %>%
+    mutate(ci = qnorm(1 - 0.05/2)/sqrt(n)) %>%
+    ggplot(aes(x = lag, y = acf)) +
+    geom_hline(yintercept = 0, color = "grey50") +
+    geom_segment(aes(xend = lag, yend = 0)) +
+    geom_hline(aes(yintercept = ci), linetype = "dashed") +
+    geom_hline(aes(yintercept = -ci), linetype = "dashed") +
+    scale_x_continuous(breaks = pretty_breaks()) +
+    labs(
+      title = "ACF of standardized errors",
+      x = "Lag (months)",
+      y = NULL
+    )
+
+plot_qq <- tbl_std_err %>%
+  ggplot(aes(sample = std_err_preferred)) +
+  geom_qq_line() +
+  geom_qq(shape = ".") +
+  labs(title = "QQ plot")
+
+plot_acf + plot_qq
 ```

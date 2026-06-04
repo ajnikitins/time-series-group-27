@@ -59,7 +59,7 @@ eval_start <- "2015-01-01"
 generate_models <- FALSE
 
 model_path <- file.path("models", paste(names(stations), collapse = "_"))
-dir.create(model_path, showWarnings = FALSE)
+dir.create(model_path, recursive = TRUE, showWarnings = FALSE)
 ```
 
 ```{r data}

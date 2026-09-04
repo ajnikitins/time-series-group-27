@@ -50,7 +50,7 @@ options(knitr.kable.NA = "")
 
 ```{r data-preparation}
 # The first row of gistemp.csv is descriptive text; the second row contains names.
-gistemp_raw_df <- read.csv("gistemp.csv", skip = 1, na.strings = "***")
+gistemp_raw_df <- read.csv("data/gistemp.csv", skip = 1, na.strings = "***")
 
 monthly_values <- gistemp_raw_df[, 2:13] %>%
   as.matrix() %>%
@@ -310,7 +310,7 @@ model_params <- hmm_grid %>%
   mutate(intercept = coalesce(intercept, mean), slope = replace_na(slope, 0))
 
 selected_k <- 6
-# selected_k <- 4
+
 selected_hmm <- hmm_level_grid %>%
   filter(k == selected_k) %>%
   pull(fit) %>%

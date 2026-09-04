@@ -70,7 +70,7 @@ get_seasonality <- \(x) {
   as.double(des$time.series[, "seasonal"])
 }
 
-data_raw_full <- read_csv("ghcn.txt") %>%
+data_raw_full <- read_csv("data/ghcn.txt") %>%
   # Convert to Celsius
   mutate(TMAX = TMAX / 10)
 

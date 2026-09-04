@@ -1,3 +1,5 @@
+.vscode
+
 .Rproj.user
 
 # History files
@@ -57,11 +59,15 @@ rsconnect/
 .vdoc.*
 *.html
 *.aux
-# *.tex
 *.fdb_latexmk
 *.fls
+*.tex
 *.synctex.gz
 *.out
 *.csv
 .DS_Store
 .positai
+
+!Final_Project_Group_27.tex
+!Final_Project_Group_27.pdf
+!gistemp.csv

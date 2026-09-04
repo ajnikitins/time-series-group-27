@@ -108,11 +108,6 @@ The project uses two datasets supplied for the course project:
 
 The copies used for the analysis are included under `data/`.
 
-## Authors
+## Project context
 
-This was a group project by:
-
-- Artūrs Jānis Ņikitins
-- Emanuele Artoni
-- Anna-Bella Dreyfus
-- Madelief van Weerdenburg
+This repository documents my implementation and empirical analysis for a group assignment completed with E. Artoni, A. Dreyfus, M. van Weerdenburg as part of the Time Series Analysis of Economic-Financial Data course at Bocconi University.
